@@ -18,6 +18,9 @@
 # and at http://www.gnu.org/licenses/.
 #
 
+# Use this for multi_usrp.hpp
+include_directories(/usr/local/include)
+
 set(SOURCES_UHD
         radio_config_uhd_validator.cpp
         radio_uhd_impl.cpp
