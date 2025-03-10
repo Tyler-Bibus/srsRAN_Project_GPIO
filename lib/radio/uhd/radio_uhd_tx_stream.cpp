@@ -234,6 +234,8 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
 
   // Return if no transmission is required.
   if (!transmit) {
+    //Turn AMP GPIO off
+    set_usrp_gpio(usrp, false);
     return;
   }
 
