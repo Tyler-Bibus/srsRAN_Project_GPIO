@@ -29,17 +29,30 @@
 
 using namespace srsran;
 
-//Set USRP GPIO
-void set_usrp_gpio(uhd::usrp::multi_usrp::sptr usrp, bool tx_active){
-  if(!usrp){
+// Initialize the GPIO
+void radio_uhd_tx_stream::initialize_gpio() {
+  if (!usrp) {
     fmt::print("USRP device not initialized\n");
     return;
   }
-  fmt::print("Switch GPIO {}\n", tx_active);
-  //GPIO HIGH for TX, LOW for RX/IDLE
-  uint32_t gpio_value = tx_active ? 0x7f : 0x00;
-  //Use FP0 (Front panel 0) confirm GPIO_Bank value
-  usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F); 
+  // Set data direction register (DDR) to output for pins 0-6
+  usrp->set_gpio_attr(gpio_bank, "DDR", 0x7F, 0x7F);
+  // Set to manual control (no ATR, like OAI’s generic mode)
+  usrp->set_gpio_attr(gpio_bank, "CTRL", 0x00, 0x7F);
+  // Start with pins LOW (RX/idle)
+  usrp->set_gpio_attr(gpio_bank, "OUT", 0x00, 0x7F);
+  fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", gpio_bank);
+}
+
+//Set USRP GPIO
+void radio_uhd_tx_stream::set_usrp_gpio(bool tx_active) {
+  if (!usrp) {
+    fmt::print("USRP device not initialized\n");
+    return;
+  }
+  uint32_t gpio_value = tx_active ? 0x7F : 0x00;
+  usrp->set_gpio_attr(gpio_bank, "OUT", gpio_value, 0x7F);
+  fmt::print("Set GPIO bank {} to {} (0x{:x})\n", gpio_bank, tx_active ? "TX" : "RX", gpio_value);
 }
 
 void radio_uhd_tx_stream::recv_async_msg()
@@ -156,6 +169,9 @@ radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp_,
 {
   srsran_assert(std::isnormal(srate_hz) && (srate_hz > 0.0), "Invalid sampling rate {}.", srate_hz);
 
+  // Initialize GPIO
+  initialize_gpio();
+
   // Build stream arguments.
   uhd::stream_args_t stream_args = {};
   stream_args.cpu_format         = "fc32";
@@ -235,12 +251,12 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
   // Return if no transmission is required.
   if (!transmit) {
     //Turn AMP GPIO off
-    set_usrp_gpio(usrp, false);
+    set_usrp_gpio(false);
     return;
   }
 
   // Turn on AMP gpio TODO CONFIRM!
-  set_usrp_gpio(usrp, true);
+  set_usrp_gpio(true);
 
   // Notify start of burst.
   if (uhd_metadata.start_of_burst) {
@@ -343,6 +359,9 @@ void radio_uhd_tx_stream::stop()
 {
   uhd::tx_metadata_t md;
   state_fsm.stop(md);
+
+  // Always set GPIO to low
+  set_usrp_gpio(false);
 
   // Send end-of-burst if it is in the middle of a burst.
   if (md.end_of_burst) {
