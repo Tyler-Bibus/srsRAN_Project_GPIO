@@ -29,31 +29,7 @@
 
 using namespace srsran;
 
-// Initialize the GPIO
-void initialize_gpio() {
-  if (!usrp) {
-    fmt::print("USRP device not initialized\n");
-    return;
-  }
-  // Set data direction register (DDR) to output for pins 0-6
-  usrp->set_gpio_attr(gpio_bank, "DDR", 0x7F, 0x7F);
-  // Set to manual control (no ATR, like OAI’s generic mode)
-  usrp->set_gpio_attr(gpio_bank, "CTRL", 0x00, 0x7F);
-  // Start with pins LOW (RX/idle)
-  usrp->set_gpio_attr(gpio_bank, "OUT", 0x00, 0x7F);
-  fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", gpio_bank);
-}
 
-//Set USRP GPIO
-void set_usrp_gpio(bool tx_active) {
-  if (!usrp) {
-    fmt::print("USRP device not initialized\n");
-    return;
-  }
-  uint32_t gpio_value = tx_active ? 0x7F : 0x00;
-  usrp->set_gpio_attr(gpio_bank, "OUT", gpio_value, 0x7F);
-  fmt::print("Set GPIO bank {} to {} (0x{:x})\n", gpio_bank, tx_active ? "TX" : "RX", gpio_value);
-}
 
 void radio_uhd_tx_stream::recv_async_msg()
 {
@@ -107,6 +83,32 @@ void radio_uhd_tx_stream::recv_async_msg()
   if (event_description.type != radio_notification_handler::event_type::UNDEFINED) {
     notifier.on_radio_rt_event(event_description);
   }
+}
+
+// Initialize the GPIO
+void radio_uhd_tx_stream::initialize_gpio() {
+  if (!usrp) {
+    fmt::print("USRP device not initialized\n");
+    return;
+  }
+  // Set data direction register (DDR) to output for pins 0-6
+  usrp->set_gpio_attr(gpio_bank, "DDR", 0x7F, 0x7F);
+  // Set to manual control (no ATR, like OAI’s generic mode)
+  usrp->set_gpio_attr(gpio_bank, "CTRL", 0x00, 0x7F);
+  // Start with pins LOW (RX/idle)
+  usrp->set_gpio_attr(gpio_bank, "OUT", 0x00, 0x7F);
+  fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", gpio_bank);
+}
+
+//Set USRP GPIO
+void radio_uhd_tx_stream::set_usrp_gpio(bool tx_active) {
+  if (!usrp) {
+    fmt::print("USRP device not initialized\n");
+    return;
+  }
+  uint32_t gpio_value = tx_active ? 0x7F : 0x00;
+  usrp->set_gpio_attr(gpio_bank, "OUT", gpio_value, 0x7F);
+  fmt::print("Set GPIO bank {} to {} (0x{:x})\n", gpio_bank, tx_active ? "TX" : "RX", gpio_value);
 }
 
 void radio_uhd_tx_stream::run_recv_async_msg()
