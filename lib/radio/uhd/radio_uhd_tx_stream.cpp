@@ -143,7 +143,7 @@ radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp_,
                                          const stream_description&    description,
                                          task_executor&               async_executor_,
                                          radio_notification_handler&  notifier_) :
-  usrp(usrp_)
+  usrp(usrp_),
   stream_id(description.id),
   async_executor(async_executor_),
   notifier(notifier_),
