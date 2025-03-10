@@ -35,6 +35,7 @@ void set_usrp_gpio(uhd::usrp::multi_usrp::sptr usrp, bool tx_active){
     fmt::print("USRP device not initialized\n");
     return;
   }
+  fmt::print("Switch GPIO\n");
   //GPIO HIGH for TX, LOW for RX/IDLE
   uint32_t gpio_value = tx_active ? 0x7f : 0x00;
   //Use FP0 (Front panel 0) confirm GPIO_Bank value
