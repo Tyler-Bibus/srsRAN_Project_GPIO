@@ -25,7 +25,7 @@
 #include "srsran/srsvec/zero.h"
 
 //Included for manual GPIO Control
-#include <uhd/usrp/radio_uhd_multi_usrp.hpp>
+#include <uhd/usrp/multi_usrp.hpp>
 
 using namespace srsran;
 
