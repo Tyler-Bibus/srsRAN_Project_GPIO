@@ -32,7 +32,7 @@ using namespace srsran;
 //Set USRP GPIO
 void set_usrp_gpio(uhd::usrp::multi_usrp::sptr usrp, bool tx_active){
   if(!usrp){
-    fmt::print("USRP device not initialized\n")
+    fmt::print("USRP device not initialized\n");
     return;
   }
   //GPIO HIGH for TX, LOW for RX/IDLE
