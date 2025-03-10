@@ -77,6 +77,10 @@ private:
   /// Power ramping transmit buffer. It is filled with zeros, used to absorb power ramping when starting a transmission.
   baseband_gateway_buffer_dynamic power_ramping_buffer;
 
+  void initialize_gpio();
+
+  void set_usrp_gpio(bool);
+
   /// Receive asynchronous message.
   void recv_async_msg();
 
