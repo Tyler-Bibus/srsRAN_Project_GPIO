@@ -30,7 +30,7 @@
 using namespace srsran;
 
 // Initialize the GPIO
-void radio_uhd_tx_stream::initialize_gpio() {
+void initialize_gpio() {
   if (!usrp) {
     fmt::print("USRP device not initialized\n");
     return;
@@ -45,7 +45,7 @@ void radio_uhd_tx_stream::initialize_gpio() {
 }
 
 //Set USRP GPIO
-void radio_uhd_tx_stream::set_usrp_gpio(bool tx_active) {
+void set_usrp_gpio(bool tx_active) {
   if (!usrp) {
     fmt::print("USRP device not initialized\n");
     return;
