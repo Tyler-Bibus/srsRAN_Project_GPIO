@@ -139,11 +139,11 @@ bool radio_uhd_tx_stream::transmit_block(unsigned&                             n
   });
 }
 
-radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp,
+radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp_,
                                          const stream_description&    description,
                                          task_executor&               async_executor_,
                                          radio_notification_handler&  notifier_) :
-  usrp(usrp)
+  usrp(usrp_)
   stream_id(description.id),
   async_executor(async_executor_),
   notifier(notifier_),
