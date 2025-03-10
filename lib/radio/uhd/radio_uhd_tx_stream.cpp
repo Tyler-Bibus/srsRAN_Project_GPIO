@@ -378,7 +378,7 @@ void radio_uhd_tx_stream::stop()
     notifier.on_radio_rt_event(event_description);
 
     // Turn GPIO Control to RX
-    set_usrp_gpio(usrp, false);
+    set_usrp_gpio(false);
 
     // Flatten buffers.
     std::array<cf_t, 4>                          buffer;
