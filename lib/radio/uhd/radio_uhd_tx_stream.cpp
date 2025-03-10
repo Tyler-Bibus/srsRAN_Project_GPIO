@@ -37,9 +37,9 @@ void set_usrp_gpio(uhd::usrp::multi_usrp::sptr usrp, bool tx_active){
   }
   fmt::print("Switch GPIO {}\n", tx_active);
   //GPIO HIGH for TX, LOW for RX/IDLE
-  //uint32_t gpio_value = tx_active ? 0x7f : 0x00;
+  uint32_t gpio_value = tx_active ? 0x7f : 0x00;
   //Use FP0 (Front panel 0) confirm GPIO_Bank value
-  //usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F); 
+  usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F); 
 }
 
 void radio_uhd_tx_stream::recv_async_msg()
