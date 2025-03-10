@@ -24,7 +24,18 @@
 #include "srsran/gateways/baseband/buffer/baseband_gateway_buffer_reader_view.h"
 #include "srsran/srsvec/zero.h"
 
+//Included for manual GPIO Control
+#include "uhd/radio_uhd_multi_usrp.h"
+
 using namespace srsran;
+
+//Set USRP GPIO
+void set_usrp_gpio(std::shared_prt<uhd::usrp::multi_usrp> usrp, bool tx_active){
+  //GPIO HIGH for TX, LOW for RX/IDLE
+  uint32_t gpio_value = tx_active ? 0x7f : 0x00;
+  //Use FP0 (Front panel 0) confirm GPIO_Bank value
+  usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F); 
+}
 
 void radio_uhd_tx_stream::recv_async_msg()
 {
@@ -220,6 +231,9 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
     return;
   }
 
+  // Turn on AMP gpio TODO CONFIRM!
+  set_usrp_gpio(usrp, true);
+
   // Notify start of burst.
   if (uhd_metadata.start_of_burst) {
     radio_notification_handler::event_description event_description;
@@ -333,6 +347,9 @@ void radio_uhd_tx_stream::stop()
     event_description.source = radio_notification_handler::event_source::TRANSMIT;
     event_description.type   = radio_notification_handler::event_type::END_OF_BURST;
     notifier.on_radio_rt_event(event_description);
+
+    // Turn GPIO Control to RX
+    set_usrp_gpio(usrp, false);
 
     // Flatten buffers.
     std::array<cf_t, 4>                          buffer;
