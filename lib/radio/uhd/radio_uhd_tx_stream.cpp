@@ -94,7 +94,7 @@ void radio_uhd_tx_stream::initialize_gpio() {
   // Set data direction register (DDR) to output for pins 0-6
   //usrp->set_gpio_attr(gpio_bank, "DDR", 0x7F, 0x7F);
   // Set to manual control (no ATR, like OAI’s generic mode)
-  usrp->set_gpio_attr(gpio_bank, "CTRL", 0x00, 0x7F);
+  //usrp->set_gpio_attr(gpio_bank, "CTRL", 0x00, 0x7F);
   // Start with pins LOW (RX/idle)
   usrp->set_gpio_attr(gpio_bank, "OUT", 0x00, 0x7F);
   fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", gpio_bank);
