@@ -30,7 +30,11 @@
 using namespace srsran;
 
 //Set USRP GPIO
-void set_usrp_gpio(std::shared_ptr<uhd::usrp::multi_usrp> usrp, bool tx_active){
+void set_usrp_gpio(bool tx_active){
+  if(!usrp){
+    fmt::print("USRP device not initialized\n");
+    return;
+  }
   //GPIO HIGH for TX, LOW for RX/IDLE
   uint32_t gpio_value = tx_active ? 0x7f : 0x00;
   //Use FP0 (Front panel 0) confirm GPIO_Bank value
@@ -139,6 +143,7 @@ radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp,
                                          const stream_description&    description,
                                          task_executor&               async_executor_,
                                          radio_notification_handler&  notifier_) :
+  usrp(usrp)
   stream_id(description.id),
   async_executor(async_executor_),
   notifier(notifier_),
@@ -232,7 +237,7 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
   }
 
   // Turn on AMP gpio TODO CONFIRM!
-  set_usrp_gpio(usrp, true);
+  set_usrp_gpio(true);
 
   // Notify start of burst.
   if (uhd_metadata.start_of_burst) {
@@ -349,7 +354,7 @@ void radio_uhd_tx_stream::stop()
     notifier.on_radio_rt_event(event_description);
 
     // Turn GPIO Control to RX
-    set_usrp_gpio(usrp, false);
+    set_usrp_gpio(false);
 
     // Flatten buffers.
     std::array<cf_t, 4>                          buffer;

@@ -39,6 +39,9 @@ namespace srsran {
 class radio_uhd_tx_stream : public baseband_gateway_transmitter, public uhd_exception_handler
 {
 private:
+  ///Holds USRP for manual GPIO
+  uhd::usrp::multi_usrp::sptr usrp;
+
   /// Receive asynchronous message timeout in seconds.
   static constexpr double RECV_ASYNC_MSG_TIMEOUT_S = 0.001;
   /// Transmit timeout in seconds.
