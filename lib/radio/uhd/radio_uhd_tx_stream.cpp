@@ -30,7 +30,7 @@
 using namespace srsran;
 
 //Set USRP GPIO
-void set_usrp_gpio(std::shared_prt<uhd::usrp::multi_usrp> usrp, bool tx_active){
+void set_usrp_gpio(std::shared_ptr<uhd::usrp::multi_usrp> usrp, bool tx_active){
   //GPIO HIGH for TX, LOW for RX/IDLE
   uint32_t gpio_value = tx_active ? 0x7f : 0x00;
   //Use FP0 (Front panel 0) confirm GPIO_Bank value
