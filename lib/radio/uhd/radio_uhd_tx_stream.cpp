@@ -355,6 +355,9 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
   } while (txd_samples_total < nsamples);
 
   last_tx_timespec = time_spec + uhd::time_spec_t::from_ticks(txd_samples_total, srate_hz);
+
+  // Set GPIO to RX
+  set_usrp_gpio(false);
 }
 
 void radio_uhd_tx_stream::stop()
