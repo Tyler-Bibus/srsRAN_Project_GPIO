@@ -92,12 +92,12 @@ void radio_uhd_tx_stream::initialize_gpio() {
     return;
   }
   // Set data direction register (DDR) to output for pins 0-6
-  //usrp->set_gpio_attr(gpio_bank, "DDR", 0x7F, 0x7F);
+  usrp->set_gpio_attr("FP0", "DDR", 0x7F, 0x7F);
   // Set to manual control (no ATR, like OAI’s generic mode)
-  //usrp->set_gpio_attr(gpio_bank, "CTRL", 0x00, 0x7F);
+  usrp->set_gpio_attr("FP0", "CTRL", 0x00, 0x7F);
   // Start with pins LOW (RX/idle)
   usrp->set_gpio_attr("FP0", "OUT", 0x00, 0x7F);
-  fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", gpio_bank);
+  fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", "FP0");
 }
 
 //Set USRP GPIO
@@ -108,7 +108,7 @@ void radio_uhd_tx_stream::set_usrp_gpio(bool tx_active) {
   }
   uint32_t gpio_value = tx_active ? 0x7F : 0x00;
   usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F);
-  fmt::print("Set GPIO bank {} to {} (0x{:x})\n", gpio_bank, tx_active ? "TX" : "RX", gpio_value);
+  fmt::print("Set GPIO bank {} to {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", gpio_value);
 }
 
 void radio_uhd_tx_stream::run_recv_async_msg()
