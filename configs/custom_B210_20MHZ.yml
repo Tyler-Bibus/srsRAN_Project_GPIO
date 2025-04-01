@@ -1,0 +1,55 @@
+# This configuration file example shows how to configure the srsRAN Project gNB to connect to a COTS UE. 
+# This config has been updated for the newest srsRAN release and tested with a OnePlus 8T. 
+# A B210 USRP is used as the RF-frontend. This config creates a TDD cell with 20 MHz bandwidth in band 78 
+# with a custom TDD pattern of 10 slots total. 
+# To run the srsRAN Project gNB with this config, use the following command: 
+#   sudo ./gnb -c custom_B210_20MHZ.yml
+
+cu_cp:
+  amf:
+    addr: 127.0.1.100                                            # The address or hostname of the AMF.
+    bind_addr: 127.0.0.1                                        # A local IP that the gNB binds to for traffic from the AMF.
+    supported_tracking_areas:                                   # Configure the TA associated with the CU-CP
+      - tac: 7                        
+        plmn_list:
+          - plmn: "90170"
+            tai_slice_support_list:
+              - sst: 1
+
+ru_sdr:
+  device_driver: uhd                                            # The RF driver name.
+  device_args: type=b200,num_recv_frames=64,num_send_frames=64  # Optionally pass arguments to the selected RF driver.
+  clock: internal                                               # Specify the clock source used by the RF. NOTE: Set to internal if NOT using an external 10 MHz reference clock.
+  srate: 23.04                                                  # RF sample rate might need to be adjusted according to selected bandwidth.
+  otw_format: sc12
+  tx_gain: 80                                                   # Transmit gain of the RF might need to be adjusted to the given situation.
+  rx_gain: 40                                                   # Receive gain of the RF might need to be adjusted to the given situation.
+
+cell_cfg:
+  dl_arfcn: 627340                                              # ARFCN of the downlink carrier (center frequency).
+  band: 78                                                      # The NR band.
+  channel_bandwidth_MHz: 20                                     # Bandwidth in MHz. Number of PRBs will be automatically derived.
+  common_scs: 30                                                # Subcarrier spacing in kHz used for data.
+  plmn: "90170"                                                 # PLMN broadcasted by the gNB.
+  tac: 7                                                        # Tracking area code (needs to match the core configuration).
+  pci: 1                                                        # Physical cell ID.
+  tdd_ul_dl_config_common:                                      # Custom TDD configuration for 10 slots
+    ref_scs: 30                                                 # Reference subcarrier spacing for TDD pattern (matches common_scs).
+  tdd_ul_dl_cfg:
+    dl_ul_tx_period: 10                     # Optional INT (10). Sets the TDD pattern periodicity in slots. The combination of this value and the chosen numerology must lead to a TDD periodicity of 0.5, 0.625, 1, 1.25, 2, 2.5, 3, 4, 5 or 10 milliseconds. Supported: [2 - 80].
+    nof_dl_slots: 6                         # Optional INT (6). Number of consecutive full Downlink slots. Supported: [0-80].
+    nof_dl_symbols: 8                       # Optional INT (8). Number of Downlink symbols at the beginning of the slot following full Downlink slots. Supported: [0-13].
+    nof_ul_slots: 3                         # Optional INT (3). Number of consecutive full Uplink slots. Supported: [0 - 80].
+    nof_ul_symbols: 0                       # Optional INT (0). Number of Uplink symbols at the end of the slot preceding the first full Uplink slot. Supported: [0-13].
+#    pattern2:
+#      dl_ul_tx_period: 10                       # Optional INT (10). Sets the TDD pattern periodicity in slots. The combination of this value and the chosen numerology must lead to a TDD periodicity of 0.5, 0.625, 1, 1.25, 2, 2.5, 3, 4, 5 or 10 milliseconds. Supported: [2 - 80].
+#     nof_dl_slots: 6                           # Optional INT (6). Number of consecutive full Downlink slots. Supported: [0-80].
+#      nof_dl_symbols: 8                         # Optional INT (8). Number of Downlink symbols at the beginning of the slot following full Downlink slots. Supported: [0-13]
+#      nof_ul_slots: 3                           # Optional INT (3). Number of consecutive full Uplink slots. Supported: [0 - 80].
+#      nof_ul_symbols: 0                         # Optional INT (0). Number of Uplink symbols at the end of the slot preceding the first full Uplink slot. Supported: [0-13].
+
+pcap:
+  mac_enable: false                                             # Set to true to enable MAC-layer PCAPs.
+  mac_filename: /tmp/gnb_mac.pcap                               # Path where the MAC PCAP is stored.
+  ngap_enable: false                                            # Set to true to enable NGAP PCAPs.
+  ngap_filename: /tmp/gnb_ngap.pcap                             # Path where the NGAP PCAP is stored.
