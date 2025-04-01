@@ -24,6 +24,8 @@ ru_sdr:
   otw_format: sc12
   tx_gain: 80                                                   # Transmit gain of the RF might need to be adjusted to the given situation.
   rx_gain: 40                                                   # Receive gain of the RF might need to be adjusted to the given situation.
+  expert_cfg:
+    tx_mode: continuous                                          # Set the transmission mode. TODO TEST THIS.
 
 cell_cfg:
   dl_arfcn: 627340                                              # ARFCN of the downlink carrier (center frequency).
