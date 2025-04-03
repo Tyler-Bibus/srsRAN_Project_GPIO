@@ -79,7 +79,7 @@ private:
 
   void initialize_gpio();
 
-  void radio_uhd_tx_stream::set_usrp_gpio_timed(uhd::time_spec_t time, bool tx_active);
+  void set_usrp_gpio_timed(uhd::time_spec_t time, bool tx_active);
 
   /// Receive asynchronous message.
   void recv_async_msg();
