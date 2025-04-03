@@ -258,11 +258,11 @@
    // Schedule GPIO high at the start of DL period
    const double SLOT_DURATION_MS = 0.5; // 0.5 ms per slot with 30 kHz SCS (from config)
    const int    DL_SLOTS        = 7;    // Number of downlink slots (hardcoded or from config)
-   const int    UL_SLOTS        = 2;    // Number of uplink slots (hardcoded or from config)
+   //const int    UL_SLOTS        = 2;    // Number of uplink slots (hardcoded or from config)
    const double FRAME_DURATION_MS = 10.0; // 10 ms frame duration
  
    double dl_duration_s = DL_SLOTS * (SLOT_DURATION_MS / 1000.0); // Convert ms to seconds
-   double ul_start_s = dl_duration_s;                             // Start of UL after DL
+   //double ul_start_s = dl_duration_s;                             // Start of UL after DL
    double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
  
    // Schedule GPIO high at the start of the frame (DL start)
@@ -365,7 +365,7 @@
    state_fsm.stop(md);
  
    // Always set GPIO to low immediately
-   set_usrp_gpio_timed(uhd::time_spec_t::get_system_time(), false);
+   set_usrp_gpio_timed(usrp->get_time_now(), false);
  
    // Send end-of-burst if it is in the middle of a burst.
    if (md.end_of_burst) {
