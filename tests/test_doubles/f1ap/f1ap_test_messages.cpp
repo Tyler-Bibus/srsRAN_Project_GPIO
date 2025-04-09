@@ -112,6 +112,11 @@ f1ap_message srsran::test_helpers::generate_f1_setup_response(const f1ap_message
   resp.pdu.set_successful_outcome().load_info_obj(ASN1_F1AP_ID_F1_SETUP);
   f1_setup_resp_s& f1_setup_resp = resp.pdu.successful_outcome().value.f1_setup_resp();
 
+  f1_setup_resp->transaction_id      = req->transaction_id;
+  f1_setup_resp->gnb_cu_name_present = true;
+  f1_setup_resp->gnb_cu_name.from_string("srscu");
+  f1_setup_resp->gnb_cu_rrc_version.latest_rrc_version.from_number(2);
+
   f1_setup_resp->cells_to_be_activ_list_present = true;
   f1_setup_resp->cells_to_be_activ_list.resize(req->gnb_du_served_cells_list.size());
   for (unsigned i = 0; i != req->gnb_du_served_cells_list.size(); ++i) {
@@ -122,6 +127,25 @@ f1ap_message srsran::test_helpers::generate_f1_setup_response(const f1ap_message
     cell.nr_pci_present = true;
     cell.nr_pci         = req_cell.served_cell_info.nr_pci;
   }
+
+  return resp;
+}
+
+f1ap_message srsran::test_helpers::generate_f1_setup_failure(const f1ap_message& f1_setup_request)
+{
+  srsran_assert(f1_setup_request.pdu.type().value == f1ap_pdu_c::types_opts::init_msg, "Expected F1 setup request");
+  srsran_assert(f1_setup_request.pdu.init_msg().value.type().value ==
+                    f1ap_elem_procs_o::init_msg_c::types_opts::f1_setup_request,
+                "Expected F1 setup request");
+  auto& req = f1_setup_request.pdu.init_msg().value.f1_setup_request();
+
+  f1ap_message resp;
+  resp.pdu.set_unsuccessful_outcome().load_info_obj(ASN1_F1AP_ID_F1_SETUP);
+  f1_setup_fail_s& f1_setup_fail = resp.pdu.unsuccessful_outcome().value.f1_setup_fail();
+
+  f1_setup_fail->transaction_id = req->transaction_id;
+  f1_setup_fail->cause.set(cause_c::types_opts::misc);
+  f1_setup_fail->cause.misc().value = cause_misc_opts::unspecified;
 
   return resp;
 }
@@ -622,39 +646,40 @@ byte_buffer srsran::test_helpers::extract_dl_dcch_msg(const byte_buffer& rrc_con
   return pdu;
 }
 
+#ifndef SRSRAN_HAS_ENTERPRISE
+
 f1ap_message srsran::test_helpers::generate_trp_information_response(const trp_id_t& trp_id)
 {
-  f1ap_message pdu = {};
-
-  pdu.pdu.set_successful_outcome();
-  pdu.pdu.successful_outcome().load_info_obj(ASN1_F1AP_ID_TRP_INFO_EXCHANGE);
-
-  auto& trp_info_resp           = pdu.pdu.successful_outcome().value.trp_info_resp();
-  trp_info_resp->transaction_id = 0;
-
-  asn1::protocol_ie_single_container_s<asn1::f1ap::trp_info_item_trp_resp_o> trp_resp_item_container;
-  asn1::f1ap::trp_info_item_s& trp_info_item = trp_resp_item_container->trp_info_item();
-  trp_info_item.trp_info.trp_id              = trp_id_to_uint(trp_id);
-
-  asn1::f1ap::trp_info_type_resp_item_c trp_info_type_resp_item;
-  trp_info_type_resp_item.set_pci_nr() = 1;
-  trp_info_item.trp_info.trp_info_type_resp_list.push_back(trp_info_type_resp_item);
-
-  trp_info_resp->trp_info_list_trp_resp.push_back(trp_resp_item_container);
-
-  return pdu;
+  return {};
 }
 
 f1ap_message srsran::test_helpers::generate_trp_information_failure(const trp_id_t& trp_id)
 {
-  f1ap_message pdu = {};
-
-  pdu.pdu.set_unsuccessful_outcome();
-  pdu.pdu.unsuccessful_outcome().load_info_obj(ASN1_F1AP_ID_TRP_INFO_EXCHANGE);
-
-  auto& trp_info_fail                      = pdu.pdu.unsuccessful_outcome().value.trp_info_fail();
-  trp_info_fail->transaction_id            = 0;
-  trp_info_fail->cause.set_radio_network() = cause_radio_network_e::unspecified;
-
-  return pdu;
+  return {};
 }
+
+f1ap_message srsran::test_helpers::generate_positioning_information_response(gnb_du_ue_f1ap_id_t du_ue_id,
+                                                                             gnb_cu_ue_f1ap_id_t cu_ue_id)
+{
+  return {};
+}
+
+f1ap_message srsran::test_helpers::generate_positioning_information_failure(gnb_du_ue_f1ap_id_t du_ue_id,
+                                                                            gnb_cu_ue_f1ap_id_t cu_ue_id)
+{
+  return {};
+}
+
+f1ap_message srsran::test_helpers::generate_positioning_activation_response(gnb_du_ue_f1ap_id_t du_ue_id,
+                                                                            gnb_cu_ue_f1ap_id_t cu_ue_id)
+{
+  return {};
+}
+
+f1ap_message srsran::test_helpers::generate_positioning_activation_failure(gnb_du_ue_f1ap_id_t du_ue_id,
+                                                                           gnb_cu_ue_f1ap_id_t cu_ue_id)
+{
+  return {};
+}
+
+#endif // SRSRAN_HAS_ENTERPRISE

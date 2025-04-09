@@ -81,7 +81,7 @@ void dl_logical_channel_manager::set_fallback_state(bool enter_fallback)
   fallback_state = enter_fallback;
 }
 
-void dl_logical_channel_manager::reset_ran_slice(lcid_t lcid)
+void dl_logical_channel_manager::reset_lcid_ran_slice(lcid_t lcid)
 {
   if (not channels[lcid].slice_id.has_value()) {
     // LCID has no slice.
@@ -94,7 +94,7 @@ void dl_logical_channel_manager::reset_ran_slice(lcid_t lcid)
   channels[lcid].slice_id.reset();
 }
 
-void dl_logical_channel_manager::deactivate(ran_slice_id_t slice_id)
+void dl_logical_channel_manager::deregister_ran_slice(ran_slice_id_t slice_id)
 {
   if (not has_slice(slice_id)) {
     return;
@@ -105,21 +105,27 @@ void dl_logical_channel_manager::deactivate(ran_slice_id_t slice_id)
   slice_lcid_list_lookup[slice_id.value()].clear();
 }
 
-void dl_logical_channel_manager::set_ran_slice(lcid_t lcid, ran_slice_id_t slice_id)
+void dl_logical_channel_manager::register_ran_slice(ran_slice_id_t slice_id)
 {
+  unsigned slice_index = slice_id.value();
+  if (slice_lcid_list_lookup.size() <= slice_index) {
+    slice_lcid_list_lookup.resize(slice_index + 1);
+  }
+}
+
+void dl_logical_channel_manager::set_lcid_ran_slice(lcid_t lcid, ran_slice_id_t slice_id)
+{
+  unsigned slice_idx = slice_id.value();
+  srsran_assert(slice_idx < slice_lcid_list_lookup.size(), "Invalid slice ID");
   if (channels[lcid].slice_id == slice_id) {
     // No-op.
     return;
   }
 
   // Remove LCID from previous slice.
-  reset_ran_slice(lcid);
+  reset_lcid_ran_slice(lcid);
 
   // Add LCID to new slice.
-  unsigned slice_idx = slice_id.value();
-  if (slice_lcid_list_lookup.size() <= slice_idx) {
-    slice_lcid_list_lookup.resize(slice_idx + 1);
-  }
   slice_lcid_list_lookup[slice_idx].push_back(&channels[lcid]);
   channels[lcid].slice_id = slice_id;
 }
@@ -145,7 +151,7 @@ void dl_logical_channel_manager::configure(logical_channel_config_list_ptr log_c
   if (old_cfgs.has_value()) {
     for (const auto& old_lc : *old_cfgs) {
       if (not channel_configs->contains(old_lc->lcid)) {
-        reset_ran_slice(old_lc->lcid);
+        reset_lcid_ran_slice(old_lc->lcid);
         channels[old_lc->lcid].reset();
       }
     }
@@ -330,7 +336,7 @@ unsigned dl_logical_channel_manager::allocate_mac_sdu(dl_msg_lc_info& subpdu, lc
   channels[lcid].buf_st -= channels[lcid].last_sched_bytes;
 
   if (lcid != LCID_SRB0 and channels[lcid].buf_st > 0) {
-    constexpr static unsigned RLC_SEGMENTATION_OVERHEAD = 4;
+    static constexpr unsigned RLC_SEGMENTATION_OVERHEAD = 4;
     // Allocation was not enough to empty the logical channel. In this specific case, we add some bytes to account
     // for the RLC segmentation overhead.
     // Note: This update is only relevant for PDSCH allocations for slots > slot_tx. For the case of PDSCH

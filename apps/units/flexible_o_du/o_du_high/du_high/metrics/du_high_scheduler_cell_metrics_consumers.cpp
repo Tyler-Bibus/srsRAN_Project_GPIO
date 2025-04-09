@@ -24,6 +24,7 @@
 #include "du_high_rlc_metrics.h"
 #include "srsran/scheduler/scheduler_metrics.h"
 #include "srsran/support/engineering_notation.h"
+#include "srsran/support/format/custom_formattable.h"
 #include "fmt/ranges.h"
 #include "fmt/std.h"
 #include <ostream>
@@ -44,6 +45,7 @@ DECLARE_METRIC("dl_nof_ok", metric_dl_nof_ok, unsigned, "");
 DECLARE_METRIC("dl_nof_nok", metric_dl_nof_nok, unsigned, "");
 DECLARE_METRIC("dl_bs", metric_dl_bs, unsigned, "");
 DECLARE_METRIC("pusch_snr_db", metric_pusch_snr_db, float, "");
+DECLARE_METRIC("pusch_rsrp_db", metric_pusch_rsrp_db, float, "");
 DECLARE_METRIC("pucch_snr_db", metric_pucch_snr_db, float, "");
 DECLARE_METRIC("ta_ns", metric_ta_ns, std::string, "");
 DECLARE_METRIC("pusch_ta_ns", metric_pusch_ta_ns, std::string, "");
@@ -59,6 +61,7 @@ DECLARE_METRIC("nof_pucch_f2f3f4_invalid_harqs", metric_nof_pucch_f2f3f4_invalid
 DECLARE_METRIC("nof_pucch_f2f3f4_invalid_csis", metric_nof_pucch_f2f3f4_invalid_csis, unsigned, "");
 DECLARE_METRIC("nof_pusch_invalid_harqs", metric_nof_pusch_invalid_harqs, unsigned, "");
 DECLARE_METRIC("nof_pusch_invalid_csis", metric_nof_pusch_invalid_csis, unsigned, "");
+DECLARE_METRIC("last_phr", metric_last_phr, std::string, "");
 DECLARE_METRIC("avg_ce_delay", metric_avg_ce_delay, float, "ms");
 DECLARE_METRIC("max_ce_delay", metric_max_ce_delay, float, "ms");
 DECLARE_METRIC("avg_crc_delay", metric_avg_crc_delay, float, "ms");
@@ -80,6 +83,7 @@ DECLARE_METRIC_SET("ue_container",
                    metric_dl_nof_nok,
                    metric_dl_bs,
                    metric_pusch_snr_db,
+                   metric_pusch_rsrp_db,
                    metric_pucch_snr_db,
                    metric_ta_ns,
                    metric_pusch_ta_ns,
@@ -89,6 +93,7 @@ DECLARE_METRIC_SET("ue_container",
                    metric_ul_brate,
                    metric_ul_nof_ok,
                    metric_ul_nof_nok,
+                   metric_last_phr,
                    metric_bsr,
                    metric_nof_pucch_f0f1_invalid_harqs,
                    metric_nof_pucch_f2f3f4_invalid_harqs,
@@ -113,11 +118,13 @@ DECLARE_METRIC_SET("cell_events", mset_cell_event, metric_sfn, metric_slot_index
 /// cell-wide metrics.
 DECLARE_METRIC("error_indication_count", metric_error_indication_count, unsigned, "");
 DECLARE_METRIC("average_latency", metric_average_latency, unsigned, "");
+DECLARE_METRIC("max_latency", metric_max_latency, unsigned, "");
 DECLARE_METRIC("latency_histogram", latency_histogram, std::vector<unsigned>, "");
 DECLARE_METRIC_SET("cell_metrics",
                    cell_metrics,
                    metric_error_indication_count,
                    metric_average_latency,
+                   metric_max_latency,
                    latency_histogram);
 
 /// Metrics root object.
@@ -223,7 +230,7 @@ void scheduler_cell_metrics_consumer_stdout::handle_metric(const app_services::m
     if (ue.ul_ri_stats.get_nof_observations() > 0) {
       fmt::print(" {:>3.1f}", ue.ul_ri_stats.get_mean());
     } else {
-      fmt::print(" {:>3}", "n/a");
+      fmt::print("   1");
     }
 
     fmt::print("   {:>2}", ue.ul_mcs.to_uint());
@@ -275,8 +282,7 @@ void scheduler_cell_metrics_consumer_json::handle_metric(const app_services::met
   metric_context_t ctx("JSON Metrics");
 
   for (const auto& ue : metrics.ue_metrics) {
-    ctx.get<mlist_ues>().emplace_back();
-    auto& output = ctx.get<mlist_ues>().back();
+    auto& output = ctx.get<mlist_ues>().emplace_back();
 
     output.write<metric_pci>(ue.pci);
     output.write<metric_rnti>(to_value(ue.rnti));
@@ -302,6 +308,9 @@ void scheduler_cell_metrics_consumer_json::handle_metric(const app_services::met
     if (!std::isnan(ue.pusch_snr_db) && !iszero(ue.pusch_snr_db)) {
       output.write<metric_pusch_snr_db>(std::clamp(ue.pusch_snr_db, -99.9f, 99.9f));
     }
+    if (!std::isnan(ue.pusch_rsrp_db) && !iszero(ue.pusch_rsrp_db)) {
+      output.write<metric_pusch_rsrp_db>(std::clamp(ue.pusch_rsrp_db, -99.9f, 0.0f));
+    }
     if (!std::isnan(ue.pucch_snr_db) && !iszero(ue.pucch_snr_db)) {
       output.write<metric_pucch_snr_db>(std::clamp(ue.pucch_snr_db, -99.9f, 99.9f));
     }
@@ -313,6 +322,7 @@ void scheduler_cell_metrics_consumer_json::handle_metric(const app_services::met
         (ue.pucch_ta_stats.get_nof_observations() > 0) ? std::to_string(ue.pucch_ta_stats.get_mean() * 1e9) : "n/a");
     output.write<metric_srs_ta_ns>(
         (ue.srs_ta_stats.get_nof_observations() > 0) ? std::to_string(ue.srs_ta_stats.get_mean() * 1e9) : "n/a");
+    output.write<metric_last_phr>(ue.last_phr ? std::to_string(ue.last_phr.value()) : "n/a");
     output.write<metric_ul_mcs>(ue.ul_mcs.to_uint());
     output.write<metric_ul_brate>(ue.ul_brate_kbps * 1e3);
     output.write<metric_ul_nof_ok>(ue.ul_nof_ok);
@@ -342,6 +352,7 @@ void scheduler_cell_metrics_consumer_json::handle_metric(const app_services::met
   auto& cell_output = ctx.get<cell_metrics>();
   cell_output.write<metric_error_indication_count>(metrics.nof_error_indications);
   cell_output.write<metric_average_latency>(metrics.average_decision_latency.count());
+  cell_output.write<metric_max_latency>(metrics.max_decision_latency.count());
   cell_output.write<latency_histogram>(
       std::vector<unsigned>(metrics.latency_histogram.begin(), metrics.latency_histogram.end()));
 
@@ -364,9 +375,29 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const app_services::metr
 
   unsigned sum_dl_bitrate_kbps = 0;
   unsigned sum_ul_bitrate_kbps = 0;
+  unsigned sum_pdsch_rbs       = 0;
+  unsigned sum_pusch_rbs       = 0;
+  float    max_crc_delay       = std::numeric_limits<float>::min();
+  float    max_ce_delay        = std::numeric_limits<float>::min();
+  float    max_pucch_delay     = std::numeric_limits<float>::min();
+  float    max_pusch_delay     = std::numeric_limits<float>::min();
   for (const auto& ue : metrics.ue_metrics) {
     sum_dl_bitrate_kbps += ue.dl_brate_kbps;
     sum_ul_bitrate_kbps += ue.ul_brate_kbps;
+    sum_pdsch_rbs += ue.tot_pdsch_prbs_used;
+    sum_pusch_rbs += ue.tot_pusch_prbs_used;
+    if (ue.max_crc_delay_ms.has_value()) {
+      max_crc_delay = std::max(max_crc_delay, ue.max_crc_delay_ms.value());
+    }
+    if (ue.max_ce_delay_ms.has_value()) {
+      max_ce_delay = std::max(max_ce_delay, ue.max_ce_delay_ms.value());
+    }
+    if (ue.max_pucch_harq_delay_ms.has_value()) {
+      max_pucch_delay = std::max(max_pucch_delay, ue.max_pucch_harq_delay_ms.value());
+    }
+    if (ue.max_pusch_harq_delay_ms.has_value()) {
+      max_pusch_delay = std::max(max_pusch_delay, ue.max_pusch_harq_delay_ms.value());
+    }
   }
 
   // log cell-wide metrics
@@ -374,15 +405,35 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const app_services::metr
   fmt::format_to(
       std::back_inserter(buffer),
       " total_dl_brate={}bps total_ul_brate={}bps nof_prbs={} nof_dl_slots={} nof_ul_slots={} error_indications={} "
-      "mean_latency={}usec latency_hist=[{}]",
+      "pdsch_rbs_per_slot={} pusch_rbs_per_slot={} pdschs_per_slot={:.3} puschs_per_slot={:.3} nof_ues={} "
+      "mean_latency={}usec max_latency={}usec max_latency_slot={} latency_hist=[{}]",
       float_to_eng_string(sum_dl_bitrate_kbps * 1e3, 1, false),
       float_to_eng_string(sum_ul_bitrate_kbps * 1e3, 1, false),
       metrics.nof_prbs,
       metrics.nof_dl_slots,
       metrics.nof_ul_slots,
       metrics.nof_error_indications,
+      sum_pdsch_rbs / metrics.nof_dl_slots,
+      sum_pusch_rbs / metrics.nof_ul_slots,
+      metrics.dl_grants_count / (float)metrics.nof_dl_slots,
+      metrics.ul_grants_count / (float)metrics.nof_ul_slots,
+      metrics.ue_metrics.size(),
       metrics.average_decision_latency.count(),
+      metrics.max_decision_latency.count(),
+      metrics.max_decision_latency_slot,
       fmt::join(metrics.latency_histogram.begin(), metrics.latency_histogram.end(), ", "));
+  if (max_crc_delay != std::numeric_limits<float>::min()) {
+    fmt::format_to(std::back_inserter(buffer), " max_crc_delay={}ms", max_crc_delay);
+  }
+  if (max_ce_delay != std::numeric_limits<float>::min()) {
+    fmt::format_to(std::back_inserter(buffer), " max_ce_delay={}ms", max_ce_delay);
+  }
+  if (max_pucch_delay != std::numeric_limits<float>::min()) {
+    fmt::format_to(std::back_inserter(buffer), " max_pucch_harq_delay={}ms", max_pucch_delay);
+  }
+  if (max_pusch_delay != std::numeric_limits<float>::min()) {
+    fmt::format_to(std::back_inserter(buffer), " max_pusch_harq_delay={}ms", max_pusch_delay);
+  }
   if (not metrics.events.empty()) {
     fmt::format_to(std::back_inserter(buffer), " events=[");
     bool first = true;
@@ -432,7 +483,7 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const app_services::metr
                    " dl_error_rate={}%",
                    dl_total > 0 ? to_percentage<int>(ue.dl_nof_nok, dl_total) : 0);
     fmt::format_to(std::back_inserter(buffer), " dl_bs={}", scaled_fmt_integer(ue.dl_bs, false));
-    fmt::format_to(std::back_inserter(buffer), " dl_nof_prbs={}", ue.tot_dl_prbs_used);
+    fmt::format_to(std::back_inserter(buffer), " dl_nof_prbs={}", ue.tot_pdsch_prbs_used);
     if (ue.last_dl_olla.has_value()) {
       fmt::format_to(std::back_inserter(buffer), " dl_olla={}", ue.last_dl_olla);
     }
@@ -456,7 +507,7 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const app_services::metr
     if (ue.ul_ri_stats.get_nof_observations() > 0) {
       fmt::format_to(std::back_inserter(buffer), " ul_ri={:.1f}", ue.ul_ri_stats.get_mean());
     } else {
-      fmt::format_to(std::back_inserter(buffer), " ul_ri=n/a");
+      fmt::format_to(std::back_inserter(buffer), " ul_ri=1");
     }
 
     fmt::format_to(std::back_inserter(buffer), " ul_mcs={}", ue.ul_mcs.to_uint());
@@ -470,81 +521,38 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const app_services::metr
     fmt::format_to(std::back_inserter(buffer), " ul_nof_nok={}", ue.ul_nof_nok);
 
     unsigned ul_total = ue.ul_nof_ok + ue.ul_nof_nok;
-    fmt::format_to(std::back_inserter(buffer),
-                   " ul_error_rate={}%",
-                   ul_total > 0 ? to_percentage<int>(ue.ul_nof_nok, ul_total) : 0);
-    if (ul_total > 0) {
-      fmt::format_to(std::back_inserter(buffer), " avg_crc_delay={:.3}ms", ue.avg_crc_delay_ms);
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " avg_crc_delay=n/a");
-    }
-    fmt::format_to(std::back_inserter(buffer), " ul_nof_prbs={}", ue.tot_ul_prbs_used);
-    fmt::format_to(std::back_inserter(buffer), " bsr={}", scaled_fmt_integer(ue.bsr, false));
-    fmt::format_to(std::back_inserter(buffer), " sr_count={}", ue.sr_count);
-    fmt::format_to(std::back_inserter(buffer), " f0f1_invalid_harqs={}", ue.nof_pucch_f0f1_invalid_harqs);
-    fmt::format_to(std::back_inserter(buffer), " f2f3f4_invalid_harqs={}", ue.nof_pucch_f2f3f4_invalid_harqs);
-    fmt::format_to(std::back_inserter(buffer), " f2f3f4_invalid_csis={}", ue.nof_pucch_f2f3f4_invalid_csis);
-    fmt::format_to(std::back_inserter(buffer), " pusch_invalid_harqs={}", ue.nof_pusch_invalid_harqs);
-    fmt::format_to(std::back_inserter(buffer), " pusch_invalid_csis={}", ue.nof_pusch_invalid_csis);
+    auto     out_it   = std::back_inserter(buffer);
+    fmt::format_to(out_it, " ul_error_rate={}%", ul_total > 0 ? to_percentage<int>(ue.ul_nof_nok, ul_total) : 0);
+    fmt::format_to(out_it, " ul_nof_prbs={}", ue.tot_pusch_prbs_used);
+    fmt::format_to(out_it, " bsr={}", scaled_fmt_integer(ue.bsr, false));
+    fmt::format_to(out_it, " sr_count={}", ue.sr_count);
+    fmt::format_to(out_it, " f0f1_invalid_harqs={}", ue.nof_pucch_f0f1_invalid_harqs);
+    fmt::format_to(out_it, " f2f3f4_invalid_harqs={}", ue.nof_pucch_f2f3f4_invalid_harqs);
+    fmt::format_to(out_it, " f2f3f4_invalid_csis={}", ue.nof_pucch_f2f3f4_invalid_csis);
+    fmt::format_to(out_it, " pusch_invalid_harqs={}", ue.nof_pusch_invalid_harqs);
+    fmt::format_to(out_it, " pusch_invalid_csis={}", ue.nof_pusch_invalid_csis);
     if (ue.last_ul_olla.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " ul_olla={}", ue.last_ul_olla.value());
+      fmt::format_to(out_it, " ul_olla={}", ue.last_ul_olla.value());
     }
     if (ue.ta_stats.get_nof_observations() > 0) {
-      fmt::format_to(std::back_inserter(buffer), " ta={}s", float_to_eng_string(ue.ta_stats.get_mean(), 0, false));
+      fmt::format_to(out_it, " ta={}s", float_to_eng_string(ue.ta_stats.get_mean(), 0, false));
     } else {
-      fmt::format_to(std::back_inserter(buffer), " ta=n/a");
+      fmt::format_to(out_it, " ta=n/a");
     }
     if (ue.srs_ta_stats.get_nof_observations() > 0) {
-      fmt::format_to(
-          std::back_inserter(buffer), " srs_ta={}s", float_to_eng_string(ue.srs_ta_stats.get_mean(), 0, false));
+      fmt::format_to(out_it, " srs_ta={}s", float_to_eng_string(ue.srs_ta_stats.get_mean(), 0, false));
     } else {
-      fmt::format_to(std::back_inserter(buffer), " srs_ta=n/a");
+      fmt::format_to(out_it, " srs_ta=n/a");
     }
-    if (ue.last_phr.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " last_phr={}", ue.last_phr.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " last_phr=n/a");
-    }
-    if (ue.avg_ce_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " avg_ul_ce_delay={:.2}ms", ue.avg_ce_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " avg_ul_ce_delay=n/a");
-    }
-    if (ue.max_ce_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " max_ul_ce_delay={:.2}ms", ue.max_ce_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " max_ul_ce_delay=n/a");
-    }
-    if (ue.avg_crc_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " avg_crc_delay={:.2}ms", ue.avg_crc_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " avg_crc_delay=n/a");
-    }
-    if (ue.max_crc_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " max_crc_delay={:.2}ms", ue.max_crc_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " max_crc_delay=n/a");
-    }
-    if (ue.avg_pusch_harq_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " avg_pusch_harq_delay={:.2}ms", ue.avg_pusch_harq_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " avg_pusch_harq_delay=n/a");
-    }
-    if (ue.max_pusch_harq_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " max_pusch_harq_delay={:.2}ms", ue.max_pusch_harq_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " max_pusch_harq_delay=n/a");
-    }
-    if (ue.avg_pucch_harq_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " avg_pucch_harq_delay={:.2}ms", ue.avg_pucch_harq_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " avg_pucch_harq_delay=n/a");
-    }
-    if (ue.max_pucch_harq_delay_ms.has_value()) {
-      fmt::format_to(std::back_inserter(buffer), " max_pucch_harq_delay={:.2}ms", ue.max_pucch_harq_delay_ms.value());
-    } else {
-      fmt::format_to(std::back_inserter(buffer), " max_pucch_harq_delay=n/a");
-    }
+    fmt::format_to(out_it, " last_phr={}", format_value_or(ue.last_phr, "n/a"));
+    fmt::format_to(out_it, " avg_ul_ce_delay={:.3}", format_unit_or(ue.avg_ce_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " max_ul_ce_delay={:.3}", format_unit_or(ue.max_ce_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " avg_crc_delay={:.3}", format_unit_or(ue.avg_crc_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " max_crc_delay={:.3}", format_unit_or(ue.max_crc_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " avg_pusch_harq_delay={:.3}", format_unit_or(ue.avg_pusch_harq_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " max_pusch_harq_delay={:.3}", format_unit_or(ue.max_pusch_harq_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " avg_pucch_harq_delay={:.3}", format_unit_or(ue.avg_pucch_harq_delay_ms, "ms", "n/a"));
+    fmt::format_to(out_it, " max_pucch_harq_delay={:.3}", format_unit_or(ue.max_pucch_harq_delay_ms, "ms", "n/a"));
 
     log_chan("{}", to_c_str(buffer));
     buffer.clear();

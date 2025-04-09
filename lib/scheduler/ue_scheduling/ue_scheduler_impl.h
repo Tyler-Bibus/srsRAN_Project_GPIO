@@ -28,6 +28,7 @@
 #include "../slicing/inter_slice_scheduler.h"
 #include "../srs/srs_scheduler_impl.h"
 #include "../uci_scheduling/uci_scheduler_impl.h"
+#include "intra_slice_scheduler.h"
 #include "ue_cell_grid_allocator.h"
 #include "ue_event_manager.h"
 #include "ue_fallback_scheduler.h"
@@ -86,25 +87,25 @@ private:
     /// Slice scheduler.
     inter_slice_scheduler slice_sched;
 
+    /// Intra-slice scheduler.
+    intra_slice_scheduler intra_slice_sched;
+
     /// SRS scheduler
     srs_scheduler_impl srs_sched;
 
     cell_context(const scheduler_ue_expert_config& expert_cfg,
-                 const ue_scheduler_cell_params&   params,
                  ue_repository&                    ues,
-                 cell_metrics_handler&             metrics_handler);
+                 const ue_scheduler_cell_params&   params);
   };
 
   const scheduler_ue_expert_config& expert_cfg;
+  srslog::basic_logger&             logger;
 
   // List of cells of the UE scheduler.
   slotted_array<cell_context, MAX_NOF_DU_CELLS> cells;
 
   /// Repository of created UEs.
   ue_repository ue_db;
-
-  /// Allocator of grants in the resource grid.
-  ue_cell_grid_allocator ue_alloc;
 
   /// Processor of UE input events.
   ue_event_manager event_mng;
@@ -114,8 +115,6 @@ private:
 
   // Last slot run.
   slot_point last_sl_ind;
-
-  srslog::basic_logger& logger;
 };
 
 } // namespace srsran

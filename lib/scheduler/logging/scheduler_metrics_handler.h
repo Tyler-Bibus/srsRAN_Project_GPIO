@@ -115,6 +115,30 @@ class cell_metrics_handler final : public sched_metrics_ue_configurator
     void                 reset();
   };
 
+  /// Counters for scheduler cell metrics that get reset on every report.
+  struct non_persistent_data {
+    // Counter for detected PRACH preambles
+    unsigned nof_prach_preambles = 0;
+    // Counter of error indications.
+    unsigned error_indication_counter = 0;
+    // Tracks the sum of scheduler decision latencies.
+    std::chrono::microseconds decision_latency_sum{0};
+    // Tracks the maximum scheduler decision latency.
+    std::chrono::microseconds max_decision_latency{0};
+    // Respective slot at which the max decision latency was detected.
+    slot_point max_decision_latency_slot;
+    // Histogram of scheduler latencies.
+    std::array<unsigned, scheduler_cell_metrics::latency_hist_bins> decision_latency_hist{};
+    // Number of downlink slots.
+    unsigned nof_dl_slots = 0;
+    // Number of uplink slots.
+    unsigned nof_ul_slots = 0;
+    // Sum of UE PDSCH grants.
+    unsigned nof_ue_pdsch_grants = 0;
+    // Sum of UE PUSCH grants.
+    unsigned nof_ue_pusch_grants = 0;
+  };
+
   scheduler_metrics_notifier&     notifier;
   const std::chrono::milliseconds report_period;
   const cell_configuration&       cell_cfg;
@@ -124,25 +148,13 @@ class cell_metrics_handler final : public sched_metrics_ue_configurator
   unsigned report_period_slots = 0;
 
   slot_point last_slot_tx;
-
-  unsigned                                                        error_indication_counter = 0;
-  std::chrono::microseconds                                       decision_latency_sum{0};
-  std::array<unsigned, scheduler_cell_metrics::latency_hist_bins> decision_latency_hist{};
+  slot_point next_report_slot;
 
   slotted_id_table<du_ue_index_t, ue_metric_context, MAX_NOF_DU_UES> ues;
   std::unordered_map<rnti_t, du_ue_index_t>                          rnti_to_ue_index_lookup;
 
-  /// Number of full downlink slots.
-  unsigned nof_dl_slots = 0;
-
-  /// Number of full uplink slots.
-  unsigned nof_ul_slots = 0;
-  // Number of PRACH preambles
-
-  unsigned nof_prach_preambles = 0;
-
-  /// Counter of number of slots elapsed since the last report.
-  unsigned slot_counter = 0;
+  /// Metrics tracked that are reset on every report.
+  non_persistent_data data;
 
   scheduler_cell_metrics next_report;
 
