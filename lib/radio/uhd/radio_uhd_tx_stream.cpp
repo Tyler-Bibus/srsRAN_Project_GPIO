@@ -268,13 +268,13 @@
    double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
  
    // Schedule GPIO high at the start of the frame (DL start)
-   set_usrp_gpio_timed(time_spec, true);
+   //set_usrp_gpio_timed(time_spec, true);
  
    // Schedule GPIO low at the end of DL (start of UL)
-   set_usrp_gpio_timed(time_spec + uhd::time_spec_t(dl_duration_s), false);
+   //set_usrp_gpio_timed(time_spec + uhd::time_spec_t(dl_duration_s), false);
  
-   // Optionally, ensure GPIO stays low for the rest of the frame (UL + guard)
-   set_usrp_gpio_timed(time_spec + uhd::time_spec_t(frame_duration_s), false);
+   // ensure GPIO stays low for the rest of the frame (UL + guard)
+   //set_usrp_gpio_timed(time_spec + uhd::time_spec_t(frame_duration_s), false);
  
    // Notify start of burst if applicable
    if (uhd_metadata.start_of_burst) {
