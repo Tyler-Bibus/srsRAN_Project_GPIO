@@ -258,20 +258,20 @@
    // Schedule GPIO high at the start of DL period
    //const double SLOT_DURATION_MS = 0.5; // 0.5 ms per slot with 30 kHz SCS (from config)
    //const int    DL_SLOTS        = 7;    // Number of downlink slots (hardcoded or from config)
-   const int    DL_SYMBOLS      = 32;   // Number of DL Symbols
+   const int    DL_SYMBOLS      =  98;   // Number of DL Symbols
    const double SYMBOL_DURATION = 0.5 / 14;     // Symbol duration (More accurate for special slots)
    //const int    UL_SLOTS        = 2;    // Number of uplink slots (hardcoded or from config)
-   const double FRAME_DURATION_MS = 10.0; // 10 ms frame duration
+   //const double FRAME_DURATION_MS = 10.0; // 10 ms frame duration
  
    double dl_duration_s = DL_SYMBOLS * SYMBOL_DURATION / 1000.0; // Convert ms to seconds (TODO: CONFIRM CORRECTNESS)
    //double ul_start_s = dl_duration_s;                             // Start of UL after DL
-   double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
+   //double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
  
    // Schedule GPIO high at the start of the frame (DL start)
-   //set_usrp_gpio_timed(time_spec, true);
+   set_usrp_gpio_timed(time_spec, true);
  
    // Schedule GPIO low at the end of DL (start of UL)
-   //set_usrp_gpio_timed(time_spec + uhd::time_spec_t(dl_duration_s), false);
+   set_usrp_gpio_timed(time_spec + uhd::time_spec_t(dl_duration_s), false);
  
    // ensure GPIO stays low for the rest of the frame (UL + guard)
    //set_usrp_gpio_timed(time_spec + uhd::time_spec_t(frame_duration_s), false);
