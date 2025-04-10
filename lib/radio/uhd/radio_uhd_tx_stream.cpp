@@ -105,10 +105,17 @@
      return;
    }
    uint32_t gpio_value = tx_active ? 0x7F : 0x00; // High for TX, Low for RX
-   usrp->set_command_time(time);
-   usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F);
-   usrp->clear_command_time();
-   fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
+   try {
+    usrp->set_command_time(time);
+    if (!usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F)) {
+      fmt::print("Error: Failed to set GPIO at time {}. {}\n", time.get_real_secs(), usrp->get_last_error().c_str());
+      return;
+    }
+    usrp->clear_command_time();
+    fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
+  } catch (const std::exception& e) {
+    fmt::print("Exception during GPIO scheduling: {}\n", e.what());
+  }
  }
  
  void radio_uhd_tx_stream::run_recv_async_msg()
@@ -261,11 +268,11 @@
    const int    DL_SYMBOLS      =  98;   // Number of DL Symbols
    const double SYMBOL_DURATION = 0.5 / 14;     // Symbol duration (More accurate for special slots)
    //const int    UL_SLOTS        = 2;    // Number of uplink slots (hardcoded or from config)
-   //const double FRAME_DURATION_MS = 10.0; // 10 ms frame duration
+   const double FRAME_DURATION_MS = 10.0; // 10 ms frame duration
  
    double dl_duration_s = DL_SYMBOLS * SYMBOL_DURATION / 1000.0; // Convert ms to seconds (TODO: CONFIRM CORRECTNESS)
    //double ul_start_s = dl_duration_s;                             // Start of UL after DL
-   //double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
+   double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
  
    // Schedule GPIO high at the start of the frame (DL start)
    set_usrp_gpio_timed(time_spec, true);
@@ -274,7 +281,7 @@
    set_usrp_gpio_timed(time_spec + uhd::time_spec_t(dl_duration_s), false);
  
    // ensure GPIO stays low for the rest of the frame (UL + guard)
-   //set_usrp_gpio_timed(time_spec + uhd::time_spec_t(frame_duration_s), false);
+   set_usrp_gpio_timed(time_spec + uhd::time_spec_t(frame_duration_s), false);
  
    // Notify start of burst if applicable
    if (uhd_metadata.start_of_burst) {
