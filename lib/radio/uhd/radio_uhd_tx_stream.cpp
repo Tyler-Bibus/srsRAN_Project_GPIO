@@ -105,17 +105,10 @@
      return;
    }
    uint32_t gpio_value = tx_active ? 0x7F : 0x00; // High for TX, Low for RX
-   try {
-    usrp->set_command_time(time);
-    if (!usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F)) {
-      fmt::print("Error: Failed to set GPIO at time {}. {}\n", time.get_real_secs(), usrp->get_last_error().c_str());
-      return;
-    }
-    usrp->clear_command_time();
-    fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
-  } catch (const std::exception& e) {
-    fmt::print("Exception during GPIO scheduling: {}\n", e.what());
-  }
+   usrp->set_command_time(time);
+   usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F);
+   usrp->clear_command_time();
+   fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
  }
  
  void radio_uhd_tx_stream::run_recv_async_msg()
