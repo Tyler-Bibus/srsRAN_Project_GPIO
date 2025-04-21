@@ -126,7 +126,6 @@ public:
     dl_proc_config.scs                     = config.scs;
     dl_proc_config.cp                      = config.cp;
     dl_proc_config.rate                    = config.srate;
-    dl_proc_config.tdd_config              = config.sectors.back().tdd_config;
     dl_proc_config.bandwidth_prb           = sector.bandwidth_rb;
     dl_proc_config.center_frequency_Hz     = sector.dl_freq_hz;
     dl_proc_config.nof_tx_ports            = sector.nof_tx_ports;

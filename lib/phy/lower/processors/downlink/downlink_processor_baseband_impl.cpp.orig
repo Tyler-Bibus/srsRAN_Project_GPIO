@@ -23,7 +23,6 @@ downlink_processor_baseband_impl::downlink_processor_baseband_impl(
   nof_slot_tti_in_advance(config.nof_slot_tti_in_advance),
   sector_id(config.sector_id),
   scs(config.scs),
-  tdd_config(config.tdd_config),
   nof_rx_ports(config.nof_tx_ports),
   nof_samples_per_subframe(config.rate.to_kHz()),
   nof_slots_per_subframe(get_nof_slots_per_subframe(config.scs)),
@@ -33,10 +32,6 @@ downlink_processor_baseband_impl::downlink_processor_baseband_impl(
 {
   unsigned symbol_size_no_cp        = config.rate.get_dft_size(config.scs);
   unsigned nof_symbols_per_subframe = nof_symbols_per_slot * nof_slots_per_subframe;
-
-  if(tdd_config) {
-    fmt::print("TDD Config {}\n", tdd_config->pattern1.nof_dl_slots);
-  }
 
   // Setup symbol sizes.
   symbol_sizes.reserve(nof_symbols_per_subframe);
@@ -49,21 +44,12 @@ downlink_processor_baseband_impl::downlink_processor_baseband_impl(
   temp_buffer_read_index = temp_buffer.get_nof_samples();
 }
 
-void downlink_processor_baseband_impl::process(
-    baseband_gateway_buffer_writer&       buffer,
-    baseband_gateway_timestamp            timestamp,
-    optional<baseband_gateway_timestamp>& start_time,
-    optional<baseband_gateway_timestamp>& stop_time)
+void downlink_processor_baseband_impl::process(baseband_gateway_buffer_writer& buffer,
+                                               baseband_gateway_timestamp      timestamp)
 {
   srsran_assert(nof_rx_ports == buffer.get_nof_channels(), "Invalid number of channels.");
   unsigned nof_output_samples    = buffer.get_nof_samples();
   unsigned nof_processed_samples = 0;
-  bool active_dl;
-  bool last_dl_symbol;
-
-  start_time.reset();
-  stop_time = hold_stop_time;
-  hold_stop_time.reset();
 
   // Process all the input samples.
   while (nof_processed_samples < nof_output_samples) {
@@ -72,23 +58,8 @@ void downlink_processor_baseband_impl::process(
     // If there are no more samples available in the temporary buffer, process a new symbol and update current symbol
     // size.
     if (current_symbol_size == temp_buffer_read_index) {
-      process_new_symbol(timestamp + nof_processed_samples,
-                         active_dl, last_dl_symbol);
+      process_new_symbol(timestamp + nof_processed_samples);
       current_symbol_size = temp_buffer.get_nof_samples();
-
-      if(!downlink_active && active_dl) {
-        srsran_assert(!start_time,
-                      "Multiple Start of Bursts not implemented yet.");
-        start_time = timestamp + nof_processed_samples;
-        downlink_active = true;
-      }
-
-      if(last_dl_symbol) {
-        srsran_assert(!stop_time,
-                     "Multiple End of Bursts not implemented yet.");
-        stop_time = timestamp + nof_processed_samples + current_symbol_size;
-        downlink_active = false;
-      }
     }
 
     // Select the minimum among the remainder of samples to process and the number of samples to complete the buffer.
@@ -110,19 +81,9 @@ void downlink_processor_baseband_impl::process(
     temp_buffer_read_index += count;
     nof_processed_samples += count;
   }
-
-  // If stop_time is past the end of the buffer the caller doesn't need to know
-  // about it yet (unless stop time is exactly on the next sample).
-  if(stop_time && *stop_time > timestamp + nof_processed_samples) {
-    hold_stop_time = stop_time;
-    stop_time.reset();
-  }
 }
 
-void downlink_processor_baseband_impl::process_new_symbol(
-    baseband_gateway_timestamp timestamp,
-    bool&                      active_downlink,
-    bool&                      last_downlink_symbol)
+void downlink_processor_baseband_impl::process_new_symbol(baseband_gateway_timestamp timestamp)
 {
   // Calculate the subframe index.
   unsigned i_sf = timestamp / nof_samples_per_subframe;
@@ -224,17 +185,5 @@ void downlink_processor_baseband_impl::process_new_symbol(
       peak_symbol_power.reset();
       symbol_papr.reset();
     }
-  }
-
-  if(tdd_config) { // TDD or FDD?
-    auto active_dl_symbols = get_active_tdd_dl_symbols(*tdd_config,
-                                                       i_slot, cp);
-    active_downlink = active_dl_symbols.start() <= i_symbol &&
-                        i_symbol < active_dl_symbols.stop();
-    last_downlink_symbol = is_last_tdd_dl_symbol(*tdd_config,
-                                                 i_slot, i_symbol, cp);
-  } else {
-    active_downlink = true;
-    last_downlink_symbol = false;
   }
 }

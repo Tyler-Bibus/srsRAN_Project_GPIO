@@ -11,7 +11,6 @@
 #pragma once
 
 #include "srsran/adt/complex.h"
-#include "srsran/adt/optional.h"
 #include "srsran/adt/span.h"
 #include "srsran/gateways/baseband/baseband_gateway_timestamp.h"
 
@@ -32,15 +31,8 @@ public:
   ///
   /// \param[in] buffer    Baseband samples to process.
   /// \param[in] timestamp Time instant in which the first sample in the buffer is transmitted.
-  /// \param[out] start    -1 if there is no need to start the TX, otherwise
-  ///                       the timestamp to start the radio at.
-  /// \param[out] stop     -1 if there is no need to stop the TX, otherwise
-  ///                       the timestamp to stop the radio at.
   /// \remark The number of channels in \c buffer must be equal to the number of transmit ports for the sector.
-  virtual void process(baseband_gateway_buffer_writer&       buffer,
-                       baseband_gateway_timestamp            timestamp,
-                       optional<baseband_gateway_timestamp>& start,
-                       optional<baseband_gateway_timestamp>& stop) = 0;
+  virtual void process(baseband_gateway_buffer_writer& buffer, baseband_gateway_timestamp timestamp) = 0;
 };
 
 } // namespace srsran

@@ -71,10 +71,4 @@ optional<unsigned> find_next_tdd_ul_slot(const tdd_ul_dl_config_common& cfg, uns
 /// \brief Finds the next TDD slot index with all UL symbols, starting from the given slot index.
 optional<unsigned> find_next_tdd_full_ul_slot(const tdd_ul_dl_config_common& cfg, unsigned start_slot_index = 0);
 
-/// \brief Determines if this is the last DL symbol in this period
-bool is_last_tdd_dl_symbol(const tdd_ul_dl_config_common& cfg,
-                           unsigned slot_index,
-                           unsigned symbol_index,
-                           cyclic_prefix cp);
-
 } // namespace srsran

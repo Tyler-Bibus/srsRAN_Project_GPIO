@@ -85,9 +85,6 @@ void lower_phy_baseband_processor::stop()
 
 void lower_phy_baseband_processor::dl_process(baseband_gateway_timestamp timestamp)
 {
-  optional<baseband_gateway_timestamp> start;
-  optional<baseband_gateway_timestamp> stop;
-
   // Check if it is running, notify stop and return without enqueueing more tasks.
   if (!tx_state.is_running()) {
     tx_state.notify_stop();

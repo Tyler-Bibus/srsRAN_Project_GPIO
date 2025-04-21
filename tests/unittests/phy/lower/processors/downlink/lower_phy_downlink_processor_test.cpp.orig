@@ -229,8 +229,6 @@ TEST_P(LowerPhyDownlinkProcessorFixture, Flow)
   subcarrier_spacing scs          = std::get<2>(GetParam());
   cyclic_prefix      cp           = std::get<3>(GetParam());
 
-  optional<baseband_gateway_timestamp> start, stop;
-
   unsigned base_symbol_size = srate.get_dft_size(scs);
 
   baseband_gateway_buffer_dynamic buffer(nof_rx_ports, 2 * base_symbol_size);
@@ -263,8 +261,7 @@ TEST_P(LowerPhyDownlinkProcessorFixture, Flow)
           amplitude_control_spy->clear();
 
           // Process baseband.
-          dl_proc_baseband.process(buffer.get_writer(), timestamp,
-                                   start, stop);
+          dl_proc_baseband.process(buffer.get_writer(), timestamp);
 
           // Prepare expected PDxCH baseband entry context.
           pdxch_processor_baseband::symbol_context pdxch_context;
