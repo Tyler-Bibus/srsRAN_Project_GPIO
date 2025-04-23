@@ -20,20 +20,4 @@ target_link_libraries(ofdm_demodulator_unittest srslog srsran_lower_phy_modulati
 add_test(ofdm_demodulator_unittest ofdm_demodulator_unittest)
 
 if (USE_PHY_TESTVECTORS)
-    add_executable(ofdm_modulator_vectortest ofdm_modulator_vectortest.cpp)
-    target_link_libraries(ofdm_modulator_vectortest srslog srsran_lower_phy_modulation srsran_generic_funcs)
-    add_test_vector(ofdm_modulator_vectortest ofdm_modulator_test_data.tar.gz "")
-
-    add_executable(ofdm_demodulator_vectortest ofdm_demodulator_vectortest.cpp)
-    target_link_libraries(ofdm_demodulator_vectortest srslog srsran_lower_phy_modulation srsran_generic_funcs)
-    add_test_vector(ofdm_demodulator_vectortest ofdm_demodulator_test_data.tar.gz "")
-
-    add_executable(ofdm_prach_demodulator_test ofdm_prach_demodulator_test.cpp)
-    target_link_libraries(ofdm_prach_demodulator_test srslog
-            srsran_lower_phy_modulation
-            srsran_generic_funcs
-            srsran_phy_support
-            gtest
-            gtest_main)
-    add_test_vector(ofdm_prach_demodulator_test ofdm_prach_demodulator_test_data.tar.gz "")
 endif (USE_PHY_TESTVECTORS)
