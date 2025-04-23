@@ -205,6 +205,7 @@ public:
         break;
     }
 
+    //These arent coming true?
     if(start_of_burst) {
       *start_of_burst -= num_samples;
       fmt::print("start of burst" + *start_of_burst);

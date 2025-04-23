@@ -201,9 +201,11 @@ void radio_uhd_tx_stream::transmit(
 
   if(tx_md.start) {
     state_fsm.queue_start_of_burst(*tx_md.start-tx_md.ts);
+    fmt::print("start of burst");
   }
   if(tx_md.stop) {
     state_fsm.queue_end_of_burst(*tx_md.stop-tx_md.ts);
+    fmt::print("start of burst");
   }
 
   // Receive stream in multiple blocks.
