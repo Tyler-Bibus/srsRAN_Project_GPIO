@@ -182,6 +182,7 @@ radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp,
 
   // Notify FSM that it was successfully initialized.
   state_fsm.init_successful();
+  fmt::print("FSM radio_uhg_tx_stream successfully initialized");
 
   // Create asynchronous task.
   run_recv_async_msg();
@@ -221,6 +222,8 @@ void radio_uhd_tx_stream::transmit(
 
     // Increment the total amount of received samples.
     txd_samples_total += txd_samples;
+
+    fmt::print("New txd_sample_total: " + txd_sample_total);
   }
 }
 
