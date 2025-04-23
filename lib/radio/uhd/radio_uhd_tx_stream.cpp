@@ -192,6 +192,7 @@ void radio_uhd_tx_stream::transmit(
     const baseband_gateway_buffer_reader&         data,
     const baseband_gateway_transmitter::metadata& tx_md)
 {
+  fmt::print("tx stream transmit called");
   // Protect stream transmitter.
   std::unique_lock<std::mutex> lock(stream_transmit_mutex);
 
@@ -223,7 +224,7 @@ void radio_uhd_tx_stream::transmit(
     // Increment the total amount of received samples.
     txd_samples_total += txd_samples;
 
-    fmt::print("New txd_sample_total: " + txd_sample_total);
+    fmt::print("New txd_sample_total: ");
   }
 }
 
