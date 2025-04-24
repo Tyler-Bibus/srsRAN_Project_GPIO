@@ -77,7 +77,7 @@ public:
   {
     std::unique_lock<std::mutex> lock(mutex);
     state = states::IDLE;
-    fmt::print("init_successful, entering idle\n");
+   fmt::print("\ninit successful now IDLE");
   }
 
   /// \brief Notifies a late or an underflow event.
@@ -128,7 +128,7 @@ public:
         result = false;
         break;
       case states::START_BURST:
-        fmt::print("transmit block: START_BURST \n");
+	fmt::print("transmitBlock: START_BURST");
         // Set start of burst flag and time spec.
         metadata.has_time_spec  = true;
         metadata.start_of_burst = true;
@@ -136,12 +136,11 @@ public:
 
         // Transition to in-burst.
         state = states::IN_BURST;
+fmt::print("transmitBlock: START_BURST");
 
-        if(end_of_burst.has_value()) {
-	  fmt::print("end_of_burst has value STATE: START_BURST \n");
+        if(end_of_burst) {
           if(num_samples > *end_of_burst) {
-            fmt::print("end_of_burst AND num_samples > *end_of_burst\n");
- 	    // Only transmit up to the end of the burst
+            // Only transmit up to the end of the burst
             num_samples = *end_of_burst;
             metadata.end_of_burst = true;
             state                 = states::IDLE;
@@ -153,9 +152,7 @@ public:
 
         break;
       case states::IN_BURST:
-        fmt::print("transmit block: IN_BURST \n");
-        if(end_of_burst.has_value()) {
-	  fmt::print("end_of_burst has value STATE: IN_BURST\n");
+        if(end_of_burst) {
           if(num_samples > *end_of_burst) {
             // Only transmit up to the end of the burst
             num_samples = *end_of_burst;
@@ -169,7 +166,6 @@ public:
 
         break;
       case states::UNDERFLOW_RECOVERY:
-        fmt::print("transmit block: UNDERFLOW_RECOVERY \n");
         // Flag end-of-burst.
         metadata.end_of_burst = true;
         state                 = states::WAIT_END_OF_BURST;
@@ -179,7 +175,6 @@ public:
         }
         result = true;
       case states::WAIT_END_OF_BURST:
-        fmt::print("transmit block: WAIT_END_OF_BURST \n");
         num_samples = 0;
         // Consider starting the burst if the wait for end-of-burst expired.
         if (wait_eob_timeout.get_real_secs() < time_spec.get_real_secs()) {
@@ -191,53 +186,38 @@ public:
 
         break;
       case states::IDLE:
-        fmt::print("transmit block: IDLE \n");
-        if(start_of_burst.has_value()) {
-          fmt::print("start_of_burst has value \n");
-	  if(num_samples >= *start_of_burst) {
-	    fmt::print("START OF BURST TRUE IN IDLE! \n");
+        if(start_of_burst) {
+          if(num_samples >= *start_of_burst) {
             // Consume the remaining samples before sending a start of burst
             num_samples = *start_of_burst;
             state = states::START_BURST;
             start_of_burst.reset();
           }
-        } else {
-		fmt::print("start_of_burst doesnt have value \n");
-		num_samples=0;
-		result = false;
-	}
-
+        }
 
         result = false;
 
         break;
       case states::WAIT_STOP:
-        fmt::print("transmit block: WAIT_STOP \n");
         num_samples = 0;
         result = false;
         break;
       case states::STOPPED:
-        fmt::print("transmit block: STOPPED \n");
         num_samples = 0;
         result = false;
         break;
     }
 
     //These arent coming true?
-    if(start_of_burst.has_value()) {
-      fmt::print("start_of_burst has value; OUT OF STATE\n");
+    if(start_of_burst) {
       *start_of_burst -= num_samples;
       fmt::print("start of burst" + *start_of_burst);
-    } else {
-	fmt::print("start_of_burst has NO value; OUT OF STATE\n");
     }
-    if(end_of_burst.has_value()) {
-	fmt::print("end_of_burst has value; OUT OF STATE\n");
+    if(end_of_burst) {
       *end_of_burst -= num_samples;
       fmt::print("end of burst" + *start_of_burst);
-    } else {
-	fmt::print("end_of_burst has NO value; OUT OF STATE\n");
     }
+
     // Transmission shall not be ignored.
     return result;
   }
@@ -245,7 +225,6 @@ public:
   // Name chosen for a future fix where sob/eob are vectors
   void queue_start_of_burst(unsigned start_of_burst_)
   {
-    fmt::print("queue_start_of_burst called, SOB: " + start_of_burst_);
     if(start_of_burst_ > 700) {
       start_of_burst_ -= 700;
     } else {
