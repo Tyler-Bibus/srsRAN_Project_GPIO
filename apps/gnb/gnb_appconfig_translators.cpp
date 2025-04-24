@@ -975,6 +975,9 @@ static void generate_low_phy_config(lower_phy_configuration&           out_cfg,
       band_helper::nr_arfcn_to_freq(band_helper::get_ul_arfcn_from_dl_arfcn(cell_cfg.dl_arfcn, cell_cfg.band));
   sector_config.nof_rx_ports = cell_cfg.nof_antennas_ul;
   sector_config.nof_tx_ports = cell_cfg.nof_antennas_dl;
+  if (band_helper::get_duplex_mode(*cell_cfg.band) == duplex_mode::TDD) {
+    sector_config.tdd_config.emplace(generate_tdd_pattern(cell_cfg.common_scs, cell_cfg.tdd_ul_dl_cfg.value()));
+  }
   out_cfg.sectors.push_back(sector_config);
 
   if (!is_valid_lower_phy_config(out_cfg)) {

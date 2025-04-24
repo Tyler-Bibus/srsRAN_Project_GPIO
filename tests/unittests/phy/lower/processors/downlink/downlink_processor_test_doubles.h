@@ -66,7 +66,11 @@ public:
     baseband_gateway_timestamp        timestamp;
   };
 
-  void process(baseband_gateway_buffer_writer& buffer, baseband_gateway_timestamp timestamp) override
+  void process(
+    baseband_gateway_buffer_writer& buffer,
+    baseband_gateway_timestamp timestamp,
+    optional<baseband_gateway_timestamp>& start,
+    optional<baseband_gateway_timestamp>& stop) override
   {
     for (unsigned i_channel = 0, i_channel_end = buffer.get_nof_channels(); i_channel != i_channel_end; ++i_channel) {
       span<cf_t> samples = buffer.get_channel_buffer(i_channel);

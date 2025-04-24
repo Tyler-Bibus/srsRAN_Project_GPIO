@@ -21,6 +21,7 @@
  */
 
 #include "radio_uhd_tx_stream.h"
+#include "srsran/adt/optional.h"
 
 using namespace srsran;
 
@@ -95,10 +96,11 @@ void radio_uhd_tx_stream::run_recv_async_msg()
   }
 }
 
-bool radio_uhd_tx_stream::transmit_block(unsigned&                             nof_txd_samples,
-                                         const baseband_gateway_buffer_reader& buffs,
-                                         unsigned                              buffer_offset,
-                                         uhd::time_spec_t&                     time_spec)
+bool radio_uhd_tx_stream::transmit_block(
+    unsigned&                             nof_txd_samples,
+    const baseband_gateway_buffer_reader& buffs,
+    unsigned                              buffer_offset,
+    uhd::time_spec_t&                     time_spec)
 {
   // Prepare metadata.
   uhd::tx_metadata_t md = {};
@@ -110,7 +112,7 @@ bool radio_uhd_tx_stream::transmit_block(unsigned&                             n
   report_fatal_error_if_not(buffs.get_nof_channels() == nof_channels, "Number of channels does not match.");
 
   // Run states.
-  if (!state_fsm.transmit_block(md, time_spec)) {
+  if (!state_fsm.transmit_block(md, time_spec, num_samples)) {
     nof_txd_samples = num_samples;
     return true;
   }
@@ -197,8 +199,9 @@ radio_uhd_tx_stream::radio_uhd_tx_stream(uhd::usrp::multi_usrp::sptr& usrp,
   run_recv_async_msg();
 }
 
-void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&         data,
-                                   const baseband_gateway_transmitter::metadata& tx_md)
+void radio_uhd_tx_stream::transmit(
+    const baseband_gateway_buffer_reader&         data,
+    const baseband_gateway_transmitter::metadata& tx_md)
 {
   // Protect stream transmitter.
   std::unique_lock<std::mutex> lock(stream_transmit_mutex);
@@ -207,6 +210,13 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
 
   unsigned nsamples          = data.get_nof_samples();
   unsigned txd_samples_total = 0;
+
+  if(tx_md.start) {
+    state_fsm.queue_start_of_burst(*tx_md.start-tx_md.ts);
+  }
+  if(tx_md.stop) {
+    state_fsm.queue_end_of_burst(*tx_md.stop-tx_md.ts);
+  }
 
   // Receive stream in multiple blocks.
   while (txd_samples_total < nsamples) {
@@ -217,7 +227,7 @@ void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        
     }
 
     // Save timespec for first block.
-    time_spec += txd_samples * srate_hz;
+    time_spec += txd_samples / srate_hz;
 
     // Increment the total amount of received samples.
     txd_samples_total += txd_samples;

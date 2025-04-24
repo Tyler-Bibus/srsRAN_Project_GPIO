@@ -21,6 +21,7 @@
  */
 
 #pragma once
+#include "srsran/adt/optional.h"
 #include "srsran/gateways/baseband/baseband_gateway_base.h"
 #include "srsran/gateways/baseband/baseband_gateway_timestamp.h"
 
@@ -36,6 +37,8 @@ public:
   struct metadata {
     /// Baseband transmitter timestamp. Indicates the time the data needs to be transmitted at.
     baseband_gateway_timestamp ts;
+    optional<baseband_gateway_timestamp> start;
+    optional<baseband_gateway_timestamp> stop;
   };
 
   /// \brief Transmits a set of baseband samples at the time instant provided in the metadata.

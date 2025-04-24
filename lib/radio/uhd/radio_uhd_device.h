@@ -153,7 +153,23 @@ public:
 
     fmt::print("Making USRP object with args '{}'\n", device_addr.to_string());
 
-    return safe_execution([this, &device_addr]() { usrp = uhd::usrp::multi_usrp::make(device_addr); });
+    return safe_execution([this, &device_addr]() {
+		    usrp = uhd::usrp::multi_usrp::make(device_addr);
+		    fmt::print("Setting GPIO for RF front end.\n");
+		    // Set GPIO for RF front end
+		    // setup GPIO for TDD, GPIO(4) = ATR_RX
+		    //set lower 7 bits to be controlled automatically by ATR (the rest 5 bits are controlled manually)
+		    usrp->set_gpio_attr("FP0", "CTRL", 0x7f, 0xff);
+		    // set data direction register (DDR) to output
+		    usrp->set_gpio_attr("FP0", "DDR", 0xff, 0xff);
+		    //set pins 4 (RX_TX_Switch) and 6 (Shutdown PA) to 1 when the radio is only receiving (ATR_RX)
+		    usrp->set_gpio_attr("FP0", "ATR_RX", (1<<4)|(1<<6), 0x7f);
+		    // set pin 5 (Shutdown LNA) to 1 when the radio is transmitting and receiveing (ATR_XX)
+		    // (we use full duplex here, because our RX is on all the time - this might need to change later)
+		    usrp->set_gpio_attr("FP0", "ATR_XX", (1<<5), 0x7f);
+		    // set the output pins to 1
+		    usrp->set_gpio_attr("FP0", "OUT", 1<<7, 0x80);
+		    });
   }
   bool is_connection_valid()
   {

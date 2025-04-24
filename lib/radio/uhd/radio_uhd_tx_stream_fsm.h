@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include "srsran/adt/optional.h"
+
 #include <condition_variable>
 #include <mutex>
 
@@ -52,9 +54,13 @@ private:
     /// Indicates the stream is transmitting a burst.
     IN_BURST,
     /// Indicates an end-of-burst must be transmitted and abort any transmission.
-    END_OF_BURST,
-    /// Indicates wait for end-of-burst acknowledgement.
+    UNDERFLOW_RECOVERY,
+    /// Indicates wait for end-of-burst acknowledgement. Used when recovering
+    /// from an underflow.
     WAIT_END_OF_BURST,
+    // TODO: Figure out how this sob/eob meshes w/ handling underflow
+    /// State that we're in while not transmitting a burst.
+    IDLE,
     /// Signals a stop to the asynchronous thread.
     WAIT_STOP,
     /// Indicates the asynchronous thread is notify_stop.
@@ -63,6 +69,12 @@ private:
 
   /// Indicates the current state.
   states state;
+
+  // TODO: It would be better to do this with vectors
+  /// Samples remaining until start of the burst
+  optional<unsigned> start_of_burst;
+  /// Samples remaining until of this burst (used to calculated eob)
+  optional<unsigned> end_of_burst;
 
   /// Protects the class concurrent access.
   mutable std::mutex mutex;
@@ -76,7 +88,7 @@ public:
   void init_successful()
   {
     std::unique_lock<std::mutex> lock(mutex);
-    state = states::START_BURST;
+    state = states::IDLE;
   }
 
   /// \brief Notifies a late or an underflow event.
@@ -85,8 +97,11 @@ public:
   void async_event_late_underflow(const uhd::time_spec_t& time_spec)
   {
     std::unique_lock<std::mutex> lock(mutex);
+    // TODO: Handle FDD
+    start_of_burst.reset();
+    end_of_burst.reset();
     if (state == states::IN_BURST) {
-      state            = states::END_OF_BURST;
+      state            = states::UNDERFLOW_RECOVERY;
       wait_eob_timeout = time_spec;
       wait_eob_timeout += WAIT_EOB_ACK_TIMEOUT_S;
     }
@@ -98,30 +113,68 @@ public:
   {
     std::unique_lock<std::mutex> lock(mutex);
     if (state == states::WAIT_END_OF_BURST) {
-      state = states::START_BURST;
+      // TODO: Handle FDD
+      state = states::IDLE;
     }
   }
 
   /// \brief Notifies a new block transmission.
   /// \param[out] metadata Provides the destination of the required metadata.
   /// \param[in] time_spec Indicates the transmission time.
+  /// \param[inout] num_samples In - number of samples available to transmit.
+  ///           Out - number of samples to deal with (transmit or discard).
   /// \return True if the block shall be transmitted. False if the block shall be ignored.
-  bool transmit_block(uhd::tx_metadata_t& metadata, uhd::time_spec_t& time_spec)
+  bool transmit_block(
+      uhd::tx_metadata_t& metadata,
+      uhd::time_spec_t& time_spec,
+      unsigned& num_samples)
   {
+    bool result;
     std::unique_lock<std::mutex> lock(mutex);
+    // Determine how many samples are going to get pulled out
+    // Also determine the metadata characteristics
     switch (state) {
+      case states::UNINITIALIZED:
+        num_samples = 0;
+        result = false;
+        break;
       case states::START_BURST:
         // Set start of burst flag and time spec.
         metadata.has_time_spec  = true;
         metadata.start_of_burst = true;
         metadata.time_spec      = time_spec;
+
         // Transition to in-burst.
         state = states::IN_BURST;
+
+        if(end_of_burst) {
+          if(num_samples > *end_of_burst) {
+            // Only transmit up to the end of the burst
+            num_samples = *end_of_burst;
+            metadata.end_of_burst = true;
+            state                 = states::IDLE;
+            end_of_burst.reset();
+          }
+        }
+
+        result = true;
+
         break;
       case states::IN_BURST:
-        // All good.
+        if(end_of_burst) {
+          if(num_samples > *end_of_burst) {
+            // Only transmit up to the end of the burst
+            num_samples = *end_of_burst;
+            metadata.end_of_burst = true;
+            state                 = states::IDLE;
+            end_of_burst.reset();
+          }
+        }
+
+        result = true;
+
         break;
-      case states::END_OF_BURST:
+      case states::UNDERFLOW_RECOVERY:
         // Flag end-of-burst.
         metadata.end_of_burst = true;
         state                 = states::WAIT_END_OF_BURST;
@@ -129,29 +182,71 @@ public:
           wait_eob_timeout = metadata.time_spec;
           wait_eob_timeout += WAIT_EOB_ACK_TIMEOUT_S;
         }
-        break;
+        result = true;
       case states::WAIT_END_OF_BURST:
+        num_samples = 0;
         // Consider starting the burst if the wait for end-of-burst expired.
         if (wait_eob_timeout.get_real_secs() < time_spec.get_real_secs()) {
-          // Set start of burst flag and time spec.
-          metadata.has_time_spec  = true;
-          metadata.start_of_burst = true;
-          metadata.time_spec      = time_spec;
-          // Transition to in-burst.
-          state = states::IN_BURST;
-          break;
+          // Transition to idle.
+          state = states::IDLE;
         }
-      case states::UNINITIALIZED:
+
+        result = false;
+
+        break;
+      case states::IDLE:
+        if(start_of_burst) {
+          if(num_samples >= *start_of_burst) {
+            // Consume the remaining samples before sending a start of burst
+            num_samples = *start_of_burst;
+            state = states::START_BURST;
+            start_of_burst.reset();
+          }
+        }
+
+        result = false;
+
+        break;
       case states::WAIT_STOP:
+        num_samples = 0;
+        result = false;
+        break;
       case states::STOPPED:
-        // Ignore transmission.
-        return false;
+        num_samples = 0;
+        result = false;
+        break;
+    }
+
+    if(start_of_burst) {
+      *start_of_burst -= num_samples;
+    }
+    if(end_of_burst) {
+      *end_of_burst -= num_samples;
     }
 
     // Transmission shall not be ignored.
-    return true;
+    return result;
   }
 
+  // Name chosen for a future fix where sob/eob are vectors
+  void queue_start_of_burst(unsigned start_of_burst_)
+  {
+    if(start_of_burst_ > 700) {
+      start_of_burst_ -= 700;
+    } else {
+      start_of_burst_ = 0;
+    }
+    srsran_assert(!start_of_burst, "SoB vector not yet implemented");
+    start_of_burst = start_of_burst_;
+  }
+
+  void queue_end_of_burst(unsigned end_of_burst_)
+  {
+    srsran_assert(!end_of_burst, "EoB vector not yet implemented");
+    end_of_burst = end_of_burst_;
+  }
+
+  // TODO: I seem to have killed stop
   void stop(uhd::tx_metadata_t& metadata)
   {
     std::unique_lock<std::mutex> lock(mutex);

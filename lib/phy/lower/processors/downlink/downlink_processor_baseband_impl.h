@@ -31,6 +31,7 @@
 #include "srsran/phy/lower/processors/downlink/pdxch/pdxch_processor_baseband.h"
 #include "srsran/phy/lower/sampling_rate.h"
 #include "srsran/ran/cyclic_prefix.h"
+#include "srsran/ran/tdd/tdd_ul_dl_config.h"
 #include "srsran/support/stats.h"
 
 namespace srsran {
@@ -45,6 +46,8 @@ struct downlink_processor_baseband_configuration {
   cyclic_prefix cp;
   /// Baseband sampling rate.
   sampling_rate rate;
+  /// TDD Config
+  optional<tdd_ul_dl_config_common> tdd_config;
   /// Number of transmit ports.
   unsigned nof_tx_ports;
   /// Number of slots notified in advance in the TTI boundary event.
@@ -69,11 +72,16 @@ public:
   void connect(downlink_processor_notifier& notifier_) { notifier = &notifier_; }
 
   // See interface for documentation.
-  void process(baseband_gateway_buffer_writer& buffer, baseband_gateway_timestamp timestamp) override;
+  void process(baseband_gateway_buffer_writer& buffer,
+               baseband_gateway_timestamp timestamp,
+               optional<baseband_gateway_timestamp>& start,
+               optional<baseband_gateway_timestamp>& stop) override;
 
 private:
-  /// Processes a new symbol.
-  void process_new_symbol(baseband_gateway_timestamp timestamp);
+  /// Processes a new symbol. Return true if last symbol in downlink.
+  void process_new_symbol(baseband_gateway_timestamp timestamp,
+                          bool& active_downlink,
+                          bool& last_downlink_symbol);
 
   /// Logger for printing amplitude control.
   srslog::basic_logger& amplitude_control_logger;
@@ -87,6 +95,10 @@ private:
   unsigned sector_id;
   /// Subcarrier spacing.
   subcarrier_spacing scs;
+  /// Cyclic prefix configuration.
+  cyclic_prefix cp;
+  /// TDD Config
+  optional<tdd_ul_dl_config_common> tdd_config;
   /// Number of receive ports.
   unsigned nof_rx_ports;
   /// Number of samples per subframe;
@@ -112,6 +124,11 @@ private:
   sample_statistics<float> peak_symbol_power;
   /// Symbol PAPR statistics.
   sample_statistics<float> symbol_papr;
+
+  /// Was the last symbol an active downlink (start of burst handling)
+  bool downlink_active = false;
+  /// An end of burst that's still in the temp_buffer
+  optional<baseband_gateway_timestamp> hold_stop_time;
 };
 
 } // namespace srsran

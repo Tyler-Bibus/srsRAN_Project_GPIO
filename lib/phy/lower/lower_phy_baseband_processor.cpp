@@ -95,6 +95,9 @@ void lower_phy_baseband_processor::stop()
 
 void lower_phy_baseband_processor::dl_process(baseband_gateway_timestamp timestamp)
 {
+  optional<baseband_gateway_timestamp> start;
+  optional<baseband_gateway_timestamp> stop;
+
   // Check if it is running, notify stop and return without enqueueing more tasks.
   if (!tx_state.is_running()) {
     tx_state.notify_stop();
@@ -126,13 +129,19 @@ void lower_phy_baseband_processor::dl_process(baseband_gateway_timestamp timesta
   last_tx_time.emplace(std::chrono::high_resolution_clock::now());
 
   // Process downlink buffer.
-  downlink_processor.process(dl_buffer->get_writer(), timestamp);
+  downlink_processor.process(dl_buffer->get_writer(), timestamp, start, stop);
 
   // Enqueue transmission.
-  tx_executor.execute([this, timestamp, tx_buffer = std::move(dl_buffer)]() mutable {
+  tx_executor.execute([this, timestamp, start, stop, tx_buffer = std::move(dl_buffer)]() mutable {
     // Prepare transmit metadata.
     baseband_gateway_transmitter::metadata tx_metadata;
     tx_metadata.ts = timestamp + tx_time_offset;
+    if(start) {
+      tx_metadata.start = *start + tx_time_offset;
+    }
+    if(stop) {
+      tx_metadata.stop = *stop + tx_time_offset;
+    }
 
     // Transmit buffer.
     transmitter.transmit(tx_buffer->get_reader(), tx_metadata);

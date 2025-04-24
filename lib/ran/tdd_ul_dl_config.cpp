@@ -122,3 +122,22 @@ optional<unsigned> srsran::find_next_tdd_full_ul_slot(const tdd_ul_dl_config_com
   }
   return ret;
 }
+
+bool srsran::is_last_tdd_dl_symbol(const tdd_ul_dl_config_common& cfg,
+                                   unsigned slot_index,
+                                   unsigned symbol_index,
+                                   cyclic_prefix cp)
+{
+  if(is_tdd_full_dl_slot(cfg, slot_index)) {
+    if(symbol_index == get_nsymb_per_slot(cp) - 1) {
+      return !has_active_tdd_dl_symbols(cfg, slot_index+1);
+    } else {
+      return false;
+    }
+  } else {
+    return symbol_index+1 ==
+        get_active_tdd_dl_symbols(cfg, slot_index, cp).stop();
+  }
+
+  // Impossible
+}
