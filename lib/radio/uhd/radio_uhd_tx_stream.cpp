@@ -105,18 +105,6 @@
    usrp->set_gpio_attr("FP0", "OUT", 1<<7, 0x80);
  }
  
- // Set USRP GPIO with timed command
- void radio_uhd_tx_stream::set_usrp_gpio_timed(uhd::time_spec_t time, bool tx_active) {
-   if (!usrp) {
-     fmt::print("USRP device not initialized\n");
-     return;
-   }
-   //uint32_t gpio_value = tx_active ? 0x7F : 0x00; // High for TX, Low for RX
-   //usrp->set_command_time(time);
-   //usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F);
-   //usrp->clear_command_time();
-   //fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
- }
  
  void radio_uhd_tx_stream::run_recv_async_msg()
  {
@@ -262,26 +250,7 @@
      return;
    }
  
-   // Schedule GPIO high at the start of DL period
-   //const double SLOT_DURATION_MS = 0.5; // 0.5 ms per slot with 30 kHz SCS (from config)
-   //const int    DL_SLOTS        = 7;    // Number of downlink slots (hardcoded or from config)
-   const int    DL_SYMBOLS      = 32;   // Number of DL Symbols
-   const double SYMBOL_DURATION = 0.5 / 14;     // Symbol duration (More accurate for special slots)
-   //const int    UL_SLOTS        = 2;    // Number of uplink slots (hardcoded or from config)
-   const double FRAME_DURATION_MS = 10.0; // 10 ms frame duration
- 
-   double dl_duration_s = DL_SYMBOLS * SYMOBL_DURATION; // Convert ms to seconds (TODO: CONFIRM CORRECTNESS)
-   //double ul_start_s = dl_duration_s;                             // Start of UL after DL
-   double frame_duration_s = FRAME_DURATION_MS / 1000.0;          // 10 ms in seconds
- 
-   // Schedule GPIO high at the start of the frame (DL start)
-   set_usrp_gpio_timed(time_spec, true);
- 
-   // Schedule GPIO low at the end of DL (start of UL)
-   set_usrp_gpio_timed(time_spec + uhd::time_spec_t(dl_duration_s), false);
- 
-   // Optionally, ensure GPIO stays low for the rest of the frame (UL + guard)
-   set_usrp_gpio_timed(time_spec + uhd::time_spec_t(frame_duration_s), false);
+
  
    // Notify start of burst if applicable
    if (uhd_metadata.start_of_burst) {
@@ -372,9 +341,6 @@
  {
    uhd::tx_metadata_t md;
    state_fsm.stop(md);
- 
-   // Always set GPIO to low immediately
-   set_usrp_gpio_timed(usrp->get_time_now(), false);
  
    // Send end-of-burst if it is in the middle of a burst.
    if (md.end_of_burst) {
