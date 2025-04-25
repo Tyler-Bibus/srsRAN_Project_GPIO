@@ -89,13 +89,20 @@
      fmt::print("USRP device not initialized\n");
      return;
    }
-   // Set data direction register (DDR) to output for pins 0-6
-   usrp->set_gpio_attr("FP0", "DDR", 0x7F, 0x7F);
-   // Set to manual control (no ATR)
-   usrp->set_gpio_attr("FP0", "CTRL", 0x00, 0x7F);
-   // Start with pins LOW (RX/idle)
-   usrp->set_gpio_attr("FP0", "OUT", 0x00, 0x7F);
-   fmt::print("Initialized GPIO on bank {} to manual control, all pins LOW\n", "FP0");
+   fmt::print("Setting GPIO for RF front end.\n");
+   // Set GPIO for RF front end
+   // setup GPIO for TDD, GPIO(4) = ATR_RX
+   // set lower 7 bits to be controlled automatically by ATR (the rest 5 bits are controlled manually)
+   usrp->set_gpio_attr("FP0", "CTRL", 0x7f, 0xff);
+   // set data direction register (DDR) to output
+   usrp->set_gpio_attr("FP0", "DDR", 0xff, 0xff);
+   // set pins 4 (RX_TX_Switch) and 6 (Shutdown PA) to 1 when the radio is only receiving (ATR_RX)
+   usrp->set_gpio_attr("FP0", "ATR_RX", (1<<4)|(1<<6), 0x7f);
+   // set pin 5 (Shutdown LNA) to 1 when the radio is transmitting and receiving (ATR_XX)
+   // (we use full duplex here, because our RX is on all the time - this might need to change later)
+   usrp->set_gpio_attr("FP0", "ATR_XX", (1<<5), 0x7f);
+   // set the output pins to 1
+   usrp->set_gpio_attr("FP0", "OUT", 1<<7, 0x80);
  }
  
  // Set USRP GPIO with timed command
@@ -104,11 +111,11 @@
      fmt::print("USRP device not initialized\n");
      return;
    }
-   uint32_t gpio_value = tx_active ? 0x7F : 0x00; // High for TX, Low for RX
-   usrp->set_command_time(time);
-   usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F);
-   usrp->clear_command_time();
-   fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
+   //uint32_t gpio_value = tx_active ? 0x7F : 0x00; // High for TX, Low for RX
+   //usrp->set_command_time(time);
+   //usrp->set_gpio_attr("FP0", "OUT", gpio_value, 0x7F);
+   //usrp->clear_command_time();
+   //fmt::print("Scheduled GPIO bank {} to {} at time {} (0x{:x})\n", "FP0", tx_active ? "TX" : "RX", time.get_real_secs(), gpio_value);
  }
  
  void radio_uhd_tx_stream::run_recv_async_msg()
