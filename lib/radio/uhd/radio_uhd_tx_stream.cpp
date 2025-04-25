@@ -240,7 +240,7 @@ return;
 // Manually toggle GPIO for start of TX burst
 if (uhd_metadata.start_of_burst) {
 usrp->set_gpio_attr("FP0", "OUT", (0<<4)|(0<<6)|(1<<7), 0xf0); // Pin 4 to 0 (TX), pin 6 to 0 (PA on), pin 7 unchanged
-SRSRAN_LOG_DEBUG("GPIO: Start TX burst, pin 4=0, pin 6=0\n");
+//SRSRAN_LOG_DEBUG("GPIO: Start TX burst, pin 4=0, pin 6=0\n");
 }
 
 // Notify start of burst if applicable
@@ -307,7 +307,7 @@ txd_samples_total += txd_samples;
 // Manually toggle GPIO for end of TX burst
 if (uhd_metadata.end_of_burst) {
 usrp->set_gpio_attr("FP0", "OUT", (1<<4)|(1<<6)|(1<<7), 0xf0); // Pin 4 to 1 (RX), pin 6 to 1 (PA off), pin 7 unchanged
-SRSRAN_LOG_DEBUG("GPIO: End TX burst, pin 4=1, pin 6=1\n");
+//SRSRAN_LOG_DEBUG("GPIO: End TX burst, pin 4=1, pin 6=1\n");
 
 radio_notification_handler::event_description event_description;
 event_description.stream_id  = stream_id;
@@ -338,7 +338,7 @@ last_tx_timespec = time_spec + uhd::time_spec_t::from_ticks(txd_samples_total, s
  
          // Reset GPIO to RX state
          usrp->set_gpio_attr("FP0", "OUT", (1<<4)|(1<<6)|(1<<7), 0xf0); // Pin 4 to 1 (RX), pin 6 to 1 (PA off)
-         SRSRAN_LOG_DEBUG("GPIO: Stop stream, pin 4=1, pin 6=1\n");
+         //SRSRAN_LOG_DEBUG("GPIO: Stop stream, pin 4=1, pin 6=1\n");
  
          std::array<cf_t, 4>                          buffer;
          static_vector<void*, RADIO_MAX_NOF_CHANNELS> buffs_flat_ptr(nof_channels);
