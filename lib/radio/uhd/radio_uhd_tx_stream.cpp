@@ -83,27 +83,22 @@
    }
  }
  
- // Initialize the GPIO
  void radio_uhd_tx_stream::initialize_gpio() {
-   if (!usrp) {
-     fmt::print("USRP device not initialized\n");
-     return;
-   }
-   fmt::print("Setting GPIO for RF front end.\n");
-   // Set GPIO for RF front end
-   // setup GPIO for TDD, GPIO(4) = ATR_RX
-   // set lower 7 bits to be controlled automatically by ATR (the rest 5 bits are controlled manually)
-   usrp->set_gpio_attr("FP0", "CTRL", 0x7f, 0xff);
-   // set data direction register (DDR) to output
-   usrp->set_gpio_attr("FP0", "DDR", 0xff, 0xff);
-   // set pins 4 (RX_TX_Switch) and 6 (Shutdown PA) to 1 when the radio is only receiving (ATR_RX)
-   usrp->set_gpio_attr("FP0", "ATR_RX", (1<<4)|(1<<6), 0x7f);
-   // set pin 5 (Shutdown LNA) to 1 when the radio is transmitting and receiving (ATR_XX)
-   // (we use full duplex here, because our RX is on all the time - this might need to change later)
-   usrp->set_gpio_attr("FP0", "ATR_XX", (1<<5), 0x7f);
-   // set the output pins to 1
-   usrp->set_gpio_attr("FP0", "OUT", 1<<7, 0x80);
- }
+  if (!usrp) {
+      fmt::print("USRP device not initialized\n");
+      return;
+  }
+  fmt::print("Setting GPIO for RF front end.\n");
+  // Set GPIO for RF front end
+  // Set pins 0–3, 5 to ATR control, pins 4, 6, 7 to manual control
+  usrp->set_gpio_attr("FP0", "CTRL", 0x2f, 0xff); // 0x2f = 00101111 (pins 0–3, 5 ATR; 4, 6, 7 manual)
+  // Set data direction register (DDR) to output
+  usrp->set_gpio_attr("FP0", "DDR", 0xff, 0xff);
+  // Initialize manual pins: pin 4 (RX/TX switch) to 1 (RX), pin 6 (Shutdown PA) to 1 (off), pin 7 to 1
+  usrp->set_gpio_attr("FP0", "OUT", (1<<4)|(1<<6)|(1<<7), 0xf0); // 0xf0 = 11110000 (pins 4, 6, 7, + reserved)
+  // Configure ATR for remaining pins if needed (e.g., pin 5 for Shutdown LNA)
+  usrp->set_gpio_attr("FP0", "ATR_XX", (1<<5), 0x20); // 0x20 = 00100000 (pin 5)
+}
  
  
  void radio_uhd_tx_stream::run_recv_async_msg()
@@ -221,150 +216,140 @@
  }
  
  void radio_uhd_tx_stream::transmit(const baseband_gateway_buffer_reader&        data,
-                                   const baseband_gateway_transmitter_metadata& tx_md)
- {
-   // Protect stream transmitter.
-   std::unique_lock<std::mutex> lock(stream_transmit_mutex);
- 
-   uhd::tx_metadata_t uhd_metadata;
- 
-   bool tx_start_padding = tx_md.tx_start.has_value();
-   bool tx_end_padding   = tx_md.tx_end.has_value();
- 
-   uhd::time_spec_t time_spec = time_spec.from_ticks(tx_md.ts, srate_hz);
-   bool             transmit;
-   if (discontinuous_tx) {
-     if (tx_start_padding) {
-       // Set the timespec to the start of the actual transmission if there is head padding in the buffer.
-       time_spec =
-           time_spec.from_ticks(tx_md.ts + static_cast<baseband_gateway_timestamp>(tx_md.tx_start.value()), srate_hz);
-     }
-     // Update state.
-     transmit = state_fsm.on_transmit(uhd_metadata, time_spec, tx_md.is_empty, tx_end_padding);
-   } else {
-     transmit = state_fsm.on_transmit(uhd_metadata, time_spec, false, false);
-   }
- 
-   // Return if no transmission is required.
-   if (!transmit) {
-     return;
-   }
- 
+  const baseband_gateway_transmitter_metadata& tx_md)
+{
+// Protect stream transmitter.
+std::unique_lock<std::mutex> lock(stream_transmit_mutex);
+uhd::tx_metadata_t uhd_metadata;
+bool tx_start_padding = tx_md.tx_start.has_value();
+bool tx_end_padding   = tx_md.tx_end.has_value();
+uhd::time_spec_t time_spec = time_spec.from_ticks(tx_md.ts, srate_hz);
+bool transmit;
+if (discontinuous_tx) {
+if (tx_start_padding) {
+time_spec = time_spec.from_ticks(tx_md.ts + static_cast<baseband_gateway_timestamp>(tx_md.tx_start.value()), srate_hz);
+}
+transmit = state_fsm.on_transmit(uhd_metadata, time_spec, tx_md.is_empty, tx_end_padding);
+} else {
+transmit = state_fsm.on_transmit(uhd_metadata, time_spec, false, false);
+}
+if (!transmit) {
+return;
+}
 
- 
-   // Notify start of burst if applicable
-   if (uhd_metadata.start_of_burst) {
-     radio_notification_handler::event_description event_description;
-     event_description.stream_id  = stream_id;
-     event_description.channel_id = 0;
-     event_description.source     = radio_notification_handler::event_source::TRANSMIT;
-     event_description.type       = radio_notification_handler::event_type::START_OF_BURST;
-     event_description.timestamp.emplace(time_spec.to_ticks(srate_hz));
-     notifier.on_radio_rt_event(event_description);
- 
-     // Transmit zeros before the actual transmission to absorb power ramping effects (if discontinuous_tx)
-     if (discontinuous_tx) {
-       unsigned transmission_gap = (time_spec - last_tx_timespec).to_ticks(srate_hz);
-       unsigned minimum_gap_before_power_ramping = srate_hz / 100000.0;
-       unsigned nof_padding_samples = 0;
- 
-       if (transmission_gap > minimum_gap_before_power_ramping) {
-         nof_padding_samples = std::min(power_ramping_nof_samples, transmission_gap - minimum_gap_before_power_ramping);
-       }
- 
-       if (nof_padding_samples > 0) {
-         uhd::tx_metadata_t power_ramping_metadata;
-         power_ramping_metadata.has_time_spec  = true;
-         power_ramping_metadata.start_of_burst = true;
-         power_ramping_metadata.end_of_burst   = false;
-         power_ramping_metadata.time_spec = time_spec - time_spec.from_ticks(nof_padding_samples, srate_hz);
- 
-         unsigned txd_padding_sps_total = 0;
-         do {
-           unsigned txd_samples = 0;
-           baseband_gateway_buffer_reader_view tx_padding =
-               baseband_gateway_buffer_reader_view(power_ramping_buffer.get_reader(), 0, nof_padding_samples);
- 
-           if (!transmit_block(txd_samples, tx_padding, txd_padding_sps_total, power_ramping_metadata)) {
-             printf("Error: failed transmitting power ramping padding. %s.\n", get_error_message().c_str());
-             return;
-           }
- 
-           power_ramping_metadata.time_spec += txd_samples * srate_hz;
-           txd_padding_sps_total += txd_samples;
- 
-         } while (txd_padding_sps_total < nof_padding_samples);
-       }
-     }
-   }
- 
-   // Notify end of burst if applicable
-   if (uhd_metadata.end_of_burst) {
-     radio_notification_handler::event_description event_description;
-     event_description.stream_id  = stream_id;
-     event_description.channel_id = 0;
-     event_description.source     = radio_notification_handler::event_source::TRANSMIT;
-     event_description.type       = radio_notification_handler::event_type::END_OF_BURST;
-     event_description.timestamp.emplace(time_spec.to_ticks(srate_hz));
-     notifier.on_radio_rt_event(event_description);
-   }
- 
-   // Determine actual transmission range.
-   unsigned data_start = discontinuous_tx && tx_start_padding ? tx_md.tx_start.value() : 0;
-   unsigned data_nof_samples =
-       discontinuous_tx && tx_end_padding ? tx_md.tx_end.value() - data_start : data.get_nof_samples() - data_start;
- 
-   baseband_gateway_buffer_reader_view tx_data =
-       discontinuous_tx && tx_md.is_empty ? baseband_gateway_buffer_reader_view(data, 0, 0)
-                                          : baseband_gateway_buffer_reader_view(data, data_start, data_nof_samples);
- 
-   unsigned nsamples = tx_data.get_nof_samples();
- 
-   // Transmit stream in multiple blocks.
-   unsigned txd_samples_total = 0;
-   do {
-     unsigned txd_samples = 0;
-     if (!transmit_block(txd_samples, tx_data, txd_samples_total, uhd_metadata)) {
-       printf("Error: failed transmitting packet. %s.\n", get_error_message().c_str());
-       return;
-     }
- 
-     uhd_metadata.time_spec += txd_samples * srate_hz;
-     txd_samples_total += txd_samples;
- 
-   } while (txd_samples_total < nsamples);
- 
-   last_tx_timespec = time_spec + uhd::time_spec_t::from_ticks(txd_samples_total, srate_hz);
- }
+// Manually toggle GPIO for start of TX burst
+if (uhd_metadata.start_of_burst) {
+usrp->set_gpio_attr("FP0", "OUT", (0<<4)|(0<<6)|(1<<7), 0xf0); // Pin 4 to 0 (TX), pin 6 to 0 (PA on), pin 7 unchanged
+SRSRAN_LOG_DEBUG("GPIO: Start TX burst, pin 4=0, pin 6=0\n");
+}
+
+// Notify start of burst if applicable
+if (uhd_metadata.start_of_burst) {
+radio_notification_handler::event_description event_description;
+event_description.stream_id  = stream_id;
+event_description.channel_id = 0;
+event_description.source     = radio_notification_handler::event_source::TRANSMIT;
+event_description.type       = radio_notification_handler::event_type::START_OF_BURST;
+event_description.timestamp.emplace(time_spec.to_ticks(srate_hz));
+notifier.on_radio_rt_event(event_description);
+
+// Transmit zeros before the actual transmission to absorb power ramping effects (if discontinuous_tx)
+if (discontinuous_tx) {
+unsigned transmission_gap = (time_spec - last_tx_timespec).to_ticks(srate_hz);
+unsigned minimum_gap_before_power_ramping = srate_hz / 100000.0;
+unsigned nof_padding_samples = 0;
+if (transmission_gap > minimum_gap_before_power_ramping) {
+nof_padding_samples = std::min(power_ramping_nof_samples, transmission_gap - minimum_gap_before_power_ramping);
+}
+if (nof_padding_samples > 0) {
+uhd::tx_metadata_t power_ramping_metadata;
+power_ramping_metadata.has_time_spec  = true;
+power_ramping_metadata.start_of_burst = true;
+power_ramping_metadata.end_of_burst   = false;
+power_ramping_metadata.time_spec = time_spec - time_spec.from_ticks(nof_padding_samples, srate_hz);
+unsigned txd_padding_sps_total = 0;
+do {
+unsigned txd_samples = 0;
+baseband_gateway_buffer_reader_view tx_padding =
+baseband_gateway_buffer_reader_view(power_ramping_buffer.get_reader(), 0, nof_padding_samples);
+if (!transmit_block(txd_samples, tx_padding, txd_padding_sps_total, power_ramping_metadata)) {
+printf("Error: failed transmitting power ramping padding. %s.\n", get_error_message().c_str());
+return;
+}
+power_ramping_metadata.time_spec += txd_samples * srate_hz;
+txd_padding_sps_total += txd_samples;
+} while (txd_padding_sps_total < nof_padding_samples);
+}
+}
+}
+
+// Determine actual transmission range.
+unsigned data_start = discontinuous_tx && tx_start_padding ? tx_md.tx_start.value() : 0;
+unsigned data_nof_samples =
+discontinuous_tx && tx_end_padding ? tx_md.tx_end.value() - data_start : data.get_nof_samples() - data_start;
+baseband_gateway_buffer_reader_view tx_data =
+discontinuous_tx && tx_md.is_empty ? baseband_gateway_buffer_reader_view(data, 0, 0)
+         : baseband_gateway_buffer_reader_view(data, data_start, data_nof_samples);
+unsigned nsamples = tx_data.get_nof_samples();
+
+// Transmit stream in multiple blocks.
+unsigned txd_samples_total = 0;
+do {
+unsigned txd_samples = 0;
+if (!transmit_block(txd_samples, tx_data, txd_samples_total, uhd_metadata)) {
+printf("Error: failed transmitting packet. %s.\n", get_error_message().c_str());
+return;
+}
+uhd_metadata.time_spec += txd_samples * srate_hz;
+txd_samples_total += txd_samples;
+} while (txd_samples_total < nsamples);
+
+// Manually toggle GPIO for end of TX burst
+if (uhd_metadata.end_of_burst) {
+usrp->set_gpio_attr("FP0", "OUT", (1<<4)|(1<<6)|(1<<7), 0xf0); // Pin 4 to 1 (RX), pin 6 to 1 (PA off), pin 7 unchanged
+SRSRAN_LOG_DEBUG("GPIO: End TX burst, pin 4=1, pin 6=1\n");
+
+radio_notification_handler::event_description event_description;
+event_description.stream_id  = stream_id;
+event_description.channel_id = 0;
+event_description.source     = radio_notification_handler::event_source::TRANSMIT;
+event_description.type       = radio_notification_handler::event_type::END_OF_BURST;
+event_description.timestamp.emplace(time_spec.to_ticks(srate_hz));
+notifier.on_radio_rt_event(event_description);
+}
+
+last_tx_timespec = time_spec + uhd::time_spec_t::from_ticks(txd_samples_total, srate_hz);
+}
  
  void radio_uhd_tx_stream::stop()
  {
-   uhd::tx_metadata_t md;
-   state_fsm.stop(md);
+     uhd::tx_metadata_t md;
+     state_fsm.stop(md);
  
-   // Send end-of-burst if it is in the middle of a burst.
-   if (md.end_of_burst) {
-     std::unique_lock<std::mutex> transmit_lock(stream_transmit_mutex);
+     // Send end-of-burst if it is in the middle of a burst.
+     if (md.end_of_burst) {
+         std::unique_lock<std::mutex> transmit_lock(stream_transmit_mutex);
+         radio_notification_handler::event_description event_description = {};
+         event_description.stream_id                                     = stream_id;
+         event_description.channel_id                                    = 0;
+         event_description.source = radio_notification_handler::event_source::TRANSMIT;
+         event_description.type   = radio_notification_handler::event_type::END_OF_BURST;
+         notifier.on_radio_rt_event(event_description);
  
-     radio_notification_handler::event_description event_description = {};
-     event_description.stream_id                                     = stream_id;
-     event_description.channel_id                                    = 0;
-     event_description.source = radio_notification_handler::event_source::TRANSMIT;
-     event_description.type   = radio_notification_handler::event_type::END_OF_BURST;
-     notifier.on_radio_rt_event(event_description);
+         // Reset GPIO to RX state
+         usrp->set_gpio_attr("FP0", "OUT", (1<<4)|(1<<6)|(1<<7), 0xf0); // Pin 4 to 1 (RX), pin 6 to 1 (PA off)
+         SRSRAN_LOG_DEBUG("GPIO: Stop stream, pin 4=1, pin 6=1\n");
  
-     std::array<cf_t, 4>                          buffer;
-     static_vector<void*, RADIO_MAX_NOF_CHANNELS> buffs_flat_ptr(nof_channels);
-     for (unsigned channel = 0; channel != nof_channels; ++channel) {
-       buffs_flat_ptr[channel] = (void*)buffer.data();
+         std::array<cf_t, 4>                          buffer;
+         static_vector<void*, RADIO_MAX_NOF_CHANNELS> buffs_flat_ptr(nof_channels);
+         for (unsigned channel = 0; channel != nof_channels; ++channel) {
+             buffs_flat_ptr[channel] = (void*)buffer.data();
+         }
+         uhd::tx_streamer::buffs_type buffs_cpp(buffs_flat_ptr.data(), nof_channels);
+         safe_execution([this, &buffs_cpp, &md]() {
+             stream->send(buffs_cpp, 0, md, TRANSMIT_TIMEOUT_S);
+         });
      }
- 
-     uhd::tx_streamer::buffs_type buffs_cpp(buffs_flat_ptr.data(), nof_channels);
- 
-     safe_execution([this, &buffs_cpp, &md]() {
-       stream->send(buffs_cpp, 0, md, TRANSMIT_TIMEOUT_S);
-     });
-   }
  }
  
  void radio_uhd_tx_stream::wait_stop()
