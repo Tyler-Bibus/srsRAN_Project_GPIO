@@ -1,0 +1,45 @@
+# srsRAN Project gNB configuration for release_23_10 with TDD and GPIO patch
+# Configures a TDD cell in band n78 (20 MHz) for a OnePlus 8T with a B210 USRP
+# Run with: sudo ./gnb -c gnb_b210_20MHz_oneplus_8t.yaml
+
+
+amf:
+  addr: 127.0.0.5            # Match AMF NGAP address
+  port: 38412                # Match AMF NGAP port
+  bind_addr: 127.0.0.1       # Local bind address for gNB
+  
+ru_sdr:
+  device_driver: uhd         # UHD driver for B210 USRP
+  device_args: type=b200,num_recv_frames=64,num_send_frames=64  # B210 settings
+  clock: internal            # Internal clock (no GPSDO)
+  srate: 23.04               # Sample rate for 20 MHz, 30 kHz SCS
+  otw_format: sc12           # Over-the-wire format
+  tx_gain: 80                # Adjust based on RF environment
+  rx_gain: 40                # Adjust based on RF environment
+
+cell_cfg:
+  dl_arfcn: 629334           # Center frequency for band n78 (~3.5 GHz)
+  band: 78                   # NR band n78
+  channel_bandwidth_MHz: 20  # 20 MHz bandwidth
+  common_scs: 30             # 30 kHz subcarrier spacing
+  plmn: "00101"              # Match AMF PLMN (MCC: 001, MNC: 01)
+  tac: 1                     # Match AMF TAC
+  pci: 1                     # Physical cell ID
+  tdd_ul_dl_cfg:
+    nof_dl_slots: 6
+    nof_dl_symbols: 5
+    nof_ul_slots: 3
+    nof_ul_symbols: 2
+
+pcap:
+  mac_enable: false          # Enable for MAC-layer debugging
+  mac_filename: /tmp/gnb_mac.pcap
+  ngap_enable: true          # Enable for NGAP debugging
+  ngap_filename: /tmp/gnb_ngap.pcap
+
+log:
+  filename: /tmp/gnb.log     # Log file location
+  all_level: error           # Debug level for NGAP troubleshooting
+  phy_level: error            # PHY logging for TDD debugging
+  radio_level: error          # Radio logging for GPIO debugging
+
